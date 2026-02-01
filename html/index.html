@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Cardápio Frutos</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/index.css">
+</head>
+<body>
+   
+    <header class="header-modern">
+        <div class="header-content">
+            <div class="logo-section">
+                <h1 class="logo-text">Frutos de Goias</h1>
+                <p class="tagline">Naturamente com amor!</p>
+            </div>
+            <nav class="nav-buttons">
+                <button id="btn-view-menu" class="nav-btn active">
+                    <i class="fas fa-home"></i> Cardápio
+                </button>
+                <button id="btn-view-admin" class="nav-btn">
+                    <i class="fas fa-cog"></i> Admin
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container-modern">
+       
+        <section id="menu-section" class="menu-section">
+            <!-- banner -->
+          
+            </div>
+
+         
+            <div class="search-container">
+                <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="search-input" placeholder="Buscar produto...">
+                </div>
+            </div>
+
+            
+            <div class="neighborhood-selector">
+                <label for="neighborhood-select">Selecione seu bairro:</label>
+                <select id="neighborhood-select" class="input-modern">
+                    <option value="">-- Escolha um bairro --</option>
+                </select>
+                <span id="neighborhood-fee" class="neighborhood-fee">Taxa: -</span>
+            </div>
+
+            
+            <div id="categories-container" class="categories-container">
+                <!-- js -->
+            </div>
+        </section>
+
+      
+        <section id="admin-section" class="admin-section hidden">
+            <div class="admin-header">
+                <h2>Painel Administrativo</h2>
+                <div class="admin-tabs">
+                    <button id="tab-products" class="admin-tab active">
+                        <i class="fas fa-box"></i> Produtos
+                    </button>
+                    <button id="tab-neighborhoods" class="admin-tab">
+                        <i class="fas fa-map-marker-alt"></i> Bairros
+                    </button>
+                </div>
+                <button id="btn-logout" class="btn-logout">
+                    <i class="fas fa-sign-out-alt"></i> Sair
+                </button>
+            </div>
+
+           
+            <div id="admin-products-tab" class="admin-tab-content active">
+            
+           
+            <div class="admin-form-section">
+                <h3>Adicionar/Editar Produto</h3>
+                <form id="product-form" class="form-modern">
+                    <input type="hidden" id="edit-index">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Nome do Produto:</label>
+                            <input type="text" id="prod-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Categoria:</label>
+                            <select id="prod-category" required>
+                                <option value="Sorvetes">Sorvetes</option>
+                                <option value="Picolés">Picolés</option>
+                                <option value="Açaí">Açaí</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Preço Base (R$):</label>
+                            <input type="number" id="prod-price" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label>URL da Imagem:</label>
+                            <input type="text" id="prod-img">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Descrição:</label>
+                        <textarea id="prod-desc" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Opções/Sabores (separe por vírgula):</label>
+                        <input type="text" id="prod-options" placeholder="Morango, Chocolate, Baunilha...">
+                    </div>
+                    <div class="form-group">
+                        <label>Complementos (separe por vírgula):</label>
+                        <input type="text" id="prod-extras" placeholder="Granulado, Calda, Amendoim...">
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" id="btn-save" class="btn-primary">
+                            <i class="fas fa-save"></i> Salvar Produto
+                        </button>
+                        <button type="button" id="btn-cancel" class="btn-secondary hidden">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+                
+                <div class="admin-products-section">
+                    <h3>Produtos Cadastrados</h3>
+                    <div id="admin-product-list" class="products-list">
+                        <!-- js -->
+                    </div>
+                </div>
+            </div>
+
+           
+            <div id="admin-neighborhoods-tab" class="admin-tab-content">
+                <div class="admin-form-section">
+                    <h3>Adicionar/Editar Bairro</h3>
+                    <form id="neighborhood-form" class="form-modern">
+                        <input type="hidden" id="edit-neighborhood-index">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Nome do Bairro:</label>
+                                <input type="text" id="neighborhood-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Taxa de Entrega (R$):</label>
+                                <input type="number" id="neighborhood-fee-input" step="0.01" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" id="btn-save-neighborhood" class="btn-primary">
+                                <i class="fas fa-save"></i> Salvar Bairro
+                            </button>
+                            <button type="button" id="btn-cancel-neighborhood" class="btn-secondary hidden">
+                                <i class="fas fa-times"></i> Cancelar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="admin-neighborhoods-section">
+                    <h3>Bairros Cadastrados</h3>
+                    <div id="admin-neighborhoods-list" class="neighborhoods-list">
+                        <!-- js -->
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+
+
+    <!-- MODAL DE OPÇÕES -->
+    <div id="options-modal" class="modal-overlay hidden">
+        <div class="modal-modern modal-large">
+            <button class="modal-close" id="btn-close-options">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="modal-content">
+                <h3 id="modal-prod-name">Personalize seu pedido</h3>
+                <div id="options-container" class="options-container">
+                    <!-- Inserido via JS -->
+                </div>
+                
+                <!-- SELETOR DE QUANTIDADE -->
+                <div class="quantity-selector">
+                    <label>Quantidade:</label>
+                    <div class="qty-controls">
+                        <button type="button" id="btn-qty-minus" class="btn-qty-control">−</button>
+                        <input type="number" id="qty-input" value="1" min="1" max="99">
+                        <button type="button" id="btn-qty-plus" class="btn-qty-control">+</button>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button id="btn-confirm-options" class="btn-primary">
+                        <i class="fas fa-plus"></i> Adicionar ao Carrinho
+                    </button>
+                    <button id="btn-close-options-alt" class="btn-secondary">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CARRINHO DRAWER -->
+    <div id="cart-drawer" class="cart-drawer">
+        <div class="cart-header">
+            <h3>Seu Carrinho</h3>
+            <button id="close-cart" class="close-btn">&times;</button>
+        </div>
+        <div id="cart-items" class="cart-items"></div>
+        <div class="cart-footer">
+            <!-- RESUMO DO PEDIDO -->
+            <div class="order-summary">
+                <div class="summary-row">
+                    <span>Subtotal:</span>
+                    <span id="subtotal">R$ 0,00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Taxa de Entrega:</span>
+                    <span id="delivery-fee">R$ 5,00</span>
+                </div>
+                <div class="summary-row discount-row" id="discount-row" style="display:none;">
+                    <span>Desconto na Entrega:</span>
+                    <span id="discount-amount" style="color:#28a745;">-R$ 6,00</span>
+                </div>
+                <div class="summary-row total-row">
+                    <span>Total:</span>
+                    <span id="cart-total">R$ 0,00</span>
+                </div>
+            </div>
+
+            <!-- CAMPOS DO CLIENTE -->
+            <div class="form-group">
+                <label>Seu Nome:</label>
+                <input type="text" id="client-name" placeholder="Como te chamamos?" class="input-modern">
+            </div>
+
+            <div class="form-group">
+                <label>Seu Endereço:</label>
+                <input type="text" id="client-address" placeholder="Rua, número, bairro..." class="input-modern">
+            </div>
+
+            <button id="btn-finish-order" class="btn-primary btn-full">
+                <i class="fas fa-paper-plane"></i> Enviar Pedido no WhatsApp
+            </button>
+        </div>
+    </div>
+
+    <!-- BOTÃO FLUTUANTE DO CARRINHO -->
+    <button id="open-cart" class="cart-fab">
+        <i class="fas fa-shopping-basket"></i>
+        <span id="cart-count" class="cart-badge">0</span>
+    </button>
+
+    <script src="../js/index.js"></script>
+</body>
+</html>
