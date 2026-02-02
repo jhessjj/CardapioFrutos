@@ -1,11 +1,83 @@
-// config
+
+const API_URL = "https://script.google.com/macros/s/AKfycbz21F06gFUzLJgykcfFN4z5D1P_KQQGhAtExdZAe0JBgBYwB1lDlsdZc6jiaUR1NXaWkQ/exec";
+
 const WHATSAPP_NUMBER = "558994127037";
 const ADMIN_PASSWORD = "Frutosp1725";
 const DISCOUNT_THRESHOLD = 50.00;
 const DISCOUNT_AMOUNT = 6.00;
 
 
+let products = [];
+let neighborhoods = [];
+let cart = [];
+let currentProductForOptions = null;
+let selectedOptions = [];
+let selectedExtras = [];
+let selectedQuantity = 1;
+let selectedNeighborhood = '';
+
+
+const menuSection = document.getElementById('menu-section');
+const adminSection = document.getElementById('admin-section');
+const categoriesContainer = document.getElementById('categories-container');
+const adminProductList = document.getElementById('admin-product-list');
+const optionsModal = document.getElementById('options-modal');
+const cartDrawer = document.getElementById('cart-drawer');
+
+
+
+async function fetchData(action) {
+    try {
+        showToast('Carregando dados...', 'info');
+        const response = await fetch(`${API_URL}?action=${action}`);
+        if (!response.ok) throw new Error(`Erro na rede: ${response.statusText}`);
+        const data = await response.json();
+        document.querySelector('.toast.toast-info')?.remove();
+        return data;
+    } catch (error) {
+        showToast(`Erro ao carregar: ${error.message}`, 'error');
+        return [];
+    }
+}
+
+async function postData(payload) {
+    try {
+        await fetch(API_URL, {
+            method: 'POST',
+            mode: 'no-cors', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return { status: 'success', message: 'Operação enviada.' };
+    } catch (error) {
+        showToast(`Erro ao enviar dados: ${error.message}`, 'error');
+        return { status: 'error', message: error.message };
+    }
+}
+
+
+async function initializeApp() {
+    const [productsData, neighborhoodsData] = await Promise.all([
+        fetchData('getProducts'),
+        fetchData('getNeighborhoods')
+    ]);
+
+    products = productsData;
+    neighborhoods = neighborhoodsData;
+
+    renderMenu();
+    renderNeighborhoodSelector();
+    if (!adminSection.classList.contains('hidden')) {
+        renderAdminProducts();
+        renderAdminNeighborhoods();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initializeApp);
+
+
 function showToast(message, type = 'info') {
+    document.querySelectorAll('.toast').forEach(t => t.remove());
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.innerText = message;
@@ -18,53 +90,7 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
-// Estado
-let products = JSON.parse(localStorage.getItem('products')) || [
-    { 
-        name: 'Sorvete de Massa', 
-        category: 'Sorvetes', 
-        price: 12.00, 
-        desc: 'Escolha até 3 sabores.', 
-        img: 'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?w=400', 
-        options: ['Morango', 'Chocolate', 'Baunilha'], 
-        extras: ['Granulado', 'Calda'],
-        stock: { 'Morango': 10, 'Chocolate': 10, 'Baunilha': 10 }
-    },
-    { 
-        name: 'Picolé de Fruta', 
-        category: 'Picolés', 
-        price: 5.00, 
-        desc: 'Picolé refrescante de fruta natural.', 
-        img: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400', 
-        options: ['Morango', 'Limão', 'Uva'], 
-        extras: [],
-        stock: { 'Morango': 20, 'Limão': 15, 'Uva': 10 }
-    }
-];
-
-let neighborhoods = JSON.parse(localStorage.getItem('neighborhoods')) || [
-    { name: 'Centro', fee: 5.00 },
-    { name: 'Vila Nova', fee: 8.00 },
-    { name: 'Zona Leste', fee: 10.00 }
-];
-
-let cart = [];
-let currentProductForOptions = null;
-let selectedOptions = [];
-let selectedExtras = [];
-let selectedQuantity = 1;
-let selectedNeighborhood = '';
-
-// elementos
-const menuSection = document.getElementById('menu-section');
-const adminSection = document.getElementById('admin-section');
-const categoriesContainer = document.getElementById('categories-container');
-const adminProductList = document.getElementById('admin-product-list');
-const optionsModal = document.getElementById('options-modal');
-const cartDrawer = document.getElementById('cart-drawer');
-
-//nav
-
+// NAVEGAÇÃO
 document.getElementById('btn-view-menu').onclick = () => {
     menuSection.classList.remove('hidden');
     adminSection.classList.add('hidden');
@@ -93,8 +119,7 @@ document.getElementById('btn-logout').onclick = () => {
     document.getElementById('btn-view-admin').classList.remove('active');
 };
 
-//adm
-
+// ABAS DO ADMIN
 document.getElementById('tab-products').onclick = () => {
     document.getElementById('admin-products-tab').classList.add('active');
     document.getElementById('admin-neighborhoods-tab').classList.remove('active');
@@ -109,10 +134,13 @@ document.getElementById('tab-neighborhoods').onclick = () => {
     document.getElementById('tab-products').classList.remove('active');
 };
 
-// cardapio
-
+// RENDERIZAÇÃO DO CARDÁPIO
 function renderMenu(filter = '') {
     categoriesContainer.innerHTML = '';
+    if (!products || products.length === 0) {
+        categoriesContainer.innerHTML = '<p style="text-align:center; padding: 20px;">Nenhum produto encontrado. Adicione itens no painel de administrador.</p>';
+        return;
+    }
     const categories = [...new Set(products.map(p => p.category))];
     
     categories.forEach((cat, catIndex) => {
@@ -132,22 +160,18 @@ function renderMenu(filter = '') {
         grid.className = 'product-grid';
         
         catProducts.forEach((prod, prodIndex) => {
-            const idx = products.indexOf(prod);
             const card = document.createElement('div');
             card.className = 'product-card';
             card.style.animationDelay = `${prodIndex * 0.05}s`;
             
-            const totalStock = prod.stock ? Object.values(prod.stock).reduce((a, b) => a + b, 0) : 1;
-            const isOutOfStock = totalStock <= 0;
-
             card.innerHTML = `
                 <img src="${prod.img || 'https://via.placeholder.com/250x200'}" class="product-img" alt="${prod.name}">
                 <div class="product-info">
                     <h3>${prod.name}</h3>
                     <p>${prod.desc}</p>
-                    <div class="product-price">R$ ${prod.price.toFixed(2)}</div>
-                    <button class="btn-add-cart" ${isOutOfStock ? 'disabled' : ''} onclick="openOptions(${idx})">
-                        ${isOutOfStock ? '❌ Esgotado' : '🛒 Escolher'}
+                    <div class="product-price">R$ ${prod.price.toFixed(2 )}</div>
+                    <button class="btn-add-cart" onclick="openOptions('${prod.id}')">
+                        🛒 Escolher
                     </button>
                 </div>
             `;
@@ -159,18 +183,22 @@ function renderMenu(filter = '') {
     });
 }
 
+// RENDERIZAÇÃO DO SELETOR DE BAIRROS
 function renderNeighborhoodSelector() {
     const select = document.getElementById('neighborhood-select');
     select.innerHTML = '<option value="">-- Escolha um bairro --</option>';
     
-    neighborhoods.forEach((neighborhood, idx) => {
-        const option = document.createElement('option');
-        option.value = neighborhood.name;
-        option.innerText = neighborhood.name;
-        select.appendChild(option);
-    });
+    if(neighborhoods) {
+        neighborhoods.forEach(neighborhood => {
+            const option = document.createElement('option');
+            option.value = neighborhood.name;
+            option.innerText = neighborhood.name;
+            select.appendChild(option);
+        });
+    }
 }
 
+// EVENTOS DE UI (MODAL, CARRINHO, ETC)
 document.getElementById('neighborhood-select').onchange = (e) => {
     selectedNeighborhood = e.target.value;
     const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
@@ -184,8 +212,10 @@ document.getElementById('neighborhood-select').onchange = (e) => {
     updateCart();
 };
 
-window.openOptions = (index) => {
-    currentProductForOptions = products[index];
+window.openOptions = (productId) => {
+    currentProductForOptions = products.find(p => p.id.toString() === productId.toString());
+    if (!currentProductForOptions) return;
+
     selectedOptions = [];
     selectedExtras = [];
     selectedQuantity = 1;
@@ -199,26 +229,16 @@ window.openOptions = (index) => {
     if (currentProductForOptions.options && currentProductForOptions.options.length > 0) {
         const group = document.createElement('div');
         group.className = 'option-group';
-        
         const title = document.createElement('h4');
         title.innerText = 'Escolha os Sabores:';
         group.appendChild(title);
-        
         const list = document.createElement('div');
         list.className = 'option-list';
-        
         currentProductForOptions.options.forEach(opt => {
-            const stockQty = (currentProductForOptions.stock && currentProductForOptions.stock[opt] !== undefined) 
-                ? currentProductForOptions.stock[opt] 
-                : 10;
-            
             const item = document.createElement('div');
-            item.className = `option-item ${stockQty <= 0 ? 'disabled' : ''}`;
-            
+            item.className = 'option-item';
             item.innerHTML = `${opt}`;
-            
             item.onclick = () => {
-                if (stockQty <= 0) return;
                 item.classList.toggle('selected');
                 if (item.classList.contains('selected')) selectedOptions.push(opt);
                 else selectedOptions = selectedOptions.filter(o => o !== opt);
@@ -232,14 +252,11 @@ window.openOptions = (index) => {
     if (currentProductForOptions.extras && currentProductForOptions.extras.length > 0) {
         const group = document.createElement('div');
         group.className = 'option-group';
-        
         const title = document.createElement('h4');
         title.innerText = 'Complementos:';
         group.appendChild(title);
-        
         const list = document.createElement('div');
         list.className = 'option-list';
-        
         currentProductForOptions.extras.forEach(ext => {
             const item = document.createElement('div');
             item.className = 'option-item';
@@ -258,20 +275,14 @@ window.openOptions = (index) => {
     optionsModal.classList.remove('hidden');
 };
 
-//estoque de quant
-
 document.getElementById('btn-qty-minus').onclick = () => {
     const input = document.getElementById('qty-input');
-    if (parseInt(input.value) > 1) {
-        input.value = parseInt(input.value) - 1;
-    }
+    if (parseInt(input.value) > 1) input.value = parseInt(input.value) - 1;
 };
 
 document.getElementById('btn-qty-plus').onclick = () => {
     const input = document.getElementById('qty-input');
-    if (parseInt(input.value) < 99) {
-        input.value = parseInt(input.value) + 1;
-    }
+    if (parseInt(input.value) < 99) input.value = parseInt(input.value) + 1;
 };
 
 document.getElementById('qty-input').onchange = () => {
@@ -285,13 +296,11 @@ document.getElementById('btn-close-options').onclick = () => optionsModal.classL
 document.getElementById('btn-close-options-alt').onclick = () => optionsModal.classList.add('hidden');
 
 document.getElementById('btn-confirm-options').onclick = () => {
-    if (selectedOptions.length === 0 && currentProductForOptions.options.length > 0) {
+    if (selectedOptions.length === 0 && currentProductForOptions.options && currentProductForOptions.options.length > 0) {
         showToast('Por favor, escolha pelo menos um sabor.', 'warning');
         return;
     }
-
     selectedQuantity = parseInt(document.getElementById('qty-input').value) || 1;
-
     for (let i = 0; i < selectedQuantity; i++) {
         cart.push({
             ...currentProductForOptions,
@@ -300,13 +309,10 @@ document.getElementById('btn-confirm-options').onclick = () => {
             qty: 1
         });
     }
-
     updateCart();
     optionsModal.classList.add('hidden');
     cartDrawer.classList.add('open');
 };
-
-//carrinho
 
 function getDeliveryFee() {
     const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
@@ -317,7 +323,6 @@ function updateCart() {
     const list = document.getElementById('cart-items');
     list.innerHTML = '';
     let subtotal = 0;
-    
     cart.forEach((item, idx) => {
         subtotal += item.price;
         const div = document.createElement('div');
@@ -329,7 +334,7 @@ function updateCart() {
             </div>
             <div class="cart-item-meta">
                 ${item.chosenOptions.length ? '🍨 ' + item.chosenOptions.join(', ') : ''}
-                ${item.chosenExtras.length ? '<br>✨ ' + item.chosenExtras.join(', ') : ''}
+                ${item.chosenExtras.length ? ' ✨' + item.chosenExtras.join(', ') : ''}
             </div>
             <button class="btn-delete" onclick="removeFromCart(${idx})" style="color:#ff6b6b; border:none; background:none; cursor:pointer; font-size:0.85rem; margin-top:8px; font-weight:600;">
                 🗑️ Remover
@@ -337,17 +342,11 @@ function updateCart() {
         `;
         list.appendChild(div);
     });
-
-    //calcular taxa de entrega e desconto
     const deliveryFee = getDeliveryFee();
     const discount = subtotal >= DISCOUNT_THRESHOLD ? DISCOUNT_AMOUNT : 0;
     const total = subtotal + deliveryFee - discount;
-
-    //atualizar resumo
     document.getElementById('subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
     document.getElementById('delivery-fee').innerText = `R$ ${deliveryFee.toFixed(2)}`;
-    
-    // mostrar/esconder desconto
     const discountRow = document.getElementById('discount-row');
     if (discount > 0) {
         discountRow.style.display = 'flex';
@@ -355,7 +354,6 @@ function updateCart() {
     } else {
         discountRow.style.display = 'none';
     }
-    
     document.getElementById('cart-total').innerText = `R$ ${total.toFixed(2)}`;
     document.getElementById('cart-count').innerText = cart.length;
 }
@@ -368,81 +366,33 @@ window.removeFromCart = (idx) => {
 document.getElementById('open-cart').onclick = () => cartDrawer.classList.add('open');
 document.getElementById('close-cart').onclick = () => cartDrawer.classList.remove('open');
 
-
 document.getElementById('btn-finish-order').onclick = () => {
-    if (cart.length === 0) {
-        showToast('Carrinho vazio!', 'error');
-        return;
-    }
-    
+    if (cart.length === 0) { showToast('Carrinho vazio!', 'error'); return; }
     const name = document.getElementById('client-name').value || 'Cliente';
     const address = document.getElementById('client-address').value || 'Não informado';
-    
-    if (!document.getElementById('client-name').value) {
-        showToast('Por favor, digite seu nome!', 'warning');
-        return;
-    }
-    
-    if (!document.getElementById('client-address').value) {
-        showToast('Por favor, digite seu endereço!', 'warning');
-        return;
-    }
-
-    if (!selectedNeighborhood) {
-        showToast('Por favor, selecione um bairro!', 'warning');
-        return;
-    }
-    
-    // dar baixa no estoque
-    cart.forEach(item => {
-        const originalProd = products.find(p => p.name === item.name);
-        if (originalProd && originalProd.stock) {
-            item.chosenOptions.forEach(opt => {
-                if (originalProd.stock[opt] !== undefined) {
-                    originalProd.stock[opt]--;
-                }
-            });
-        }
-    });
-    
-    localStorage.setItem('products', JSON.stringify(products));
-    renderMenu();
-    // mensagem que vaipara  whats
+    if (!document.getElementById('client-name').value) { showToast('Por favor, digite seu nome!', 'warning'); return; }
+    if (!document.getElementById('client-address').value) { showToast('Por favor, digite seu endereço!', 'warning'); return; }
+    if (!selectedNeighborhood) { showToast('Por favor, selecione um bairro!', 'warning'); return; }
     
     const subtotal = cart.reduce((sum, item) => sum + item.price, 0);
     const deliveryFee = getDeliveryFee();
     const discount = subtotal >= DISCOUNT_THRESHOLD ? DISCOUNT_AMOUNT : 0;
     const total = subtotal + deliveryFee - discount;
     
-    let msg = `*Novo Pedido - WhatsApp*\n\n`;
-    msg += ` *Cliente:* ${name}\n`;
-    msg += ` *Endereço:* ${address}\n`;
-    msg += ` *Bairro:* ${selectedNeighborhood}\n`;
-    msg += `*Data:* ${new Date().toLocaleDateString('pt-BR')}\n`;
-    msg += `*Hora:* ${new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}\n`;
-    msg += `\n${'═'.repeat(40)}\n\n`;
-    
+    let msg = `*Novo Pedido - WhatsApp*\n\n *Cliente:* ${name}\n *Endereço:* ${address}\n *Bairro:* ${selectedNeighborhood}\n*Data:* ${new Date().toLocaleDateString('pt-BR')}\n*Hora:* ${new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}\n\n${'═'.repeat(40)}\n\n`;
     cart.forEach((item, i) => {
         msg += `*${i + 1}. ${item.name}* - R$ ${item.price.toFixed(2)}\n`;
         if (item.chosenOptions.length) msg += `    Sabores: ${item.chosenOptions.join(', ')}\n`;
         if (item.chosenExtras.length) msg += `    Extras: ${item.chosenExtras.join(', ')}\n`;
         msg += `\n`;
     });
-    
-    msg += `${'═'.repeat(40)}\n`;
-    msg += ` *Resumo do Pedido:*\n`;
-    msg += `Subtotal: R$ ${subtotal.toFixed(2)}\n`;
-    msg += `Taxa de Entrega (${selectedNeighborhood}): R$ ${deliveryFee.toFixed(2)}\n`;
-    if (discount > 0) {
-        msg += `Desconto na Entrega: -R$ ${discount.toFixed(2)} \n`;
-    }
+    msg += `${'═'.repeat(40)}\n *Resumo do Pedido:*\nSubtotal: R$ ${subtotal.toFixed(2)}\nTaxa de Entrega (${selectedNeighborhood}): R$ ${deliveryFee.toFixed(2)}\n`;
+    if (discount > 0) msg += `Desconto na Entrega: -R$ ${discount.toFixed(2)} \n`;
     msg += `\n*TOTAL: R$ ${total.toFixed(2)}*`;
     
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
-    
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg )}`, '_blank');
     showToast('✅ Pedido enviado com sucesso!', 'success');
     
-    // Limpar carrinho
     cart = [];
     updateCart();
     document.getElementById('client-name').value = '';
@@ -455,54 +405,13 @@ document.getElementById('btn-finish-order').onclick = () => {
 
 document.getElementById('search-input').oninput = (e) => renderMenu(e.target.value);
 
-//adm prod
 
 function renderAdminProducts() {
     adminProductList.innerHTML = '';
-    products.forEach((p, idx) => {
+    if (!products) return;
+    products.forEach(p => {
         const productCard = document.createElement('div');
         productCard.className = 'product-admin-card';
-        
-        let stockHTML = '';
-        if (p.options && p.options.length > 0) {
-            stockHTML = `
-                <table class="stock-table">
-                    <thead>
-                        <tr>
-                            <th>Sabor</th>
-                            <th style="text-align: center;">Estoque</th>
-                            <th style="text-align: center;">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            
-            p.options.forEach(opt => {
-                const qty = p.stock && p.stock[opt] !== undefined ? p.stock[opt] : 0;
-                let statusClass = 'in-stock';
-                if (qty === 0) statusClass = 'out-of-stock';
-                else if (qty <= 5) statusClass = 'low-stock';
-                
-                stockHTML += `
-                    <tr>
-                        <td class="flavor-name-cell">${opt}</td>
-                        <td class="stock-qty-cell ${statusClass}">${qty}</td>
-                        <td class="stock-controls-cell">
-                            <button class="btn-qty" onclick="adjustStock(${idx}, '${opt}', -1)" title="Diminuir">−</button>
-                            <button class="btn-qty" onclick="adjustStock(${idx}, '${opt}', 1)" title="Aumentar">+</button>
-                        </td>
-                    </tr>
-                `;
-            });
-            
-            stockHTML += `
-                    </tbody>
-                </table>
-            `;
-        } else {
-            stockHTML = '<p style="color:#999; font-size:12px; margin:0; font-style:italic; text-align:center; padding:16px;">Sem sabores definidos</p>';
-        }
-
         productCard.innerHTML = `
             <div class="product-card-header">
                 <div class="product-info-admin">
@@ -513,90 +422,62 @@ function renderAdminProducts() {
                     </div>
                 </div>
                 <div class="product-actions">
-                    <button class="btn-edit" onclick="editProduct(${idx})" title="Editar">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn-delete-product" onclick="deleteProduct(${idx})" title="Deletar">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    <button class="btn-edit" onclick="editProduct('${p.id}')" title="Editar"><i class="fas fa-edit"></i></button>
+                    <button class="btn-delete-product" onclick="deleteProduct('${p.id}')" title="Deletar"><i class="fas fa-trash"></i></button>
                 </div>
             </div>
-            <div class="product-card-stock">
-                <h5>📊 Estoque por Sabor</h5>
-                ${stockHTML}
-            </div>
         `;
-        
         adminProductList.appendChild(productCard);
     });
 }
 
-window.adjustStock = (idx, flavor, amount) => {
-    if (!products[idx].stock) products[idx].stock = {};
-    if (products[idx].stock[flavor] === undefined) products[idx].stock[flavor] = 0;
-    
-    products[idx].stock[flavor] = Math.max(0, products[idx].stock[flavor] + amount);
-    localStorage.setItem('products', JSON.stringify(products));
-    renderAdminProducts();
-    renderMenu();
-};
-
-document.getElementById('product-form').onsubmit = (e) => {
+document.getElementById('product-form').onsubmit = async (e) => {
     e.preventDefault();
-    const idx = document.getElementById('edit-index').value;
-    const options = document.getElementById('prod-options').value.split(',').map(s => s.trim()).filter(s => s);
+    const id = document.getElementById('edit-index').value;
     
-    let newStock = {};
-    if (idx !== "" && products[idx].stock) {
-        newStock = products[idx].stock;
-    }
-    
-    options.forEach(opt => {
-        if (newStock[opt] === undefined) newStock[opt] = 0;
-    });
-
-    const newProd = {
+    const productData = {
+        id: id || null,
         name: document.getElementById('prod-name').value,
         category: document.getElementById('prod-category').value,
         price: parseFloat(document.getElementById('prod-price').value),
         img: document.getElementById('prod-img').value,
         desc: document.getElementById('prod-desc').value,
-        options: options,
+        options: document.getElementById('prod-options').value.split(',').map(s => s.trim()).filter(s => s),
         extras: document.getElementById('prod-extras').value.split(',').map(s => s.trim()).filter(s => s),
-        stock: newStock
     };
 
-    if (idx !== "") products[idx] = newProd;
-    else products.push(newProd);
+    showToast('Salvando produto...', 'info');
+    await postData({ action: 'saveProduct', data: productData });
+    
+    showToast('Produto salvo! Atualizando...', 'success');
+    await initializeApp(); 
 
-    localStorage.setItem('products', JSON.stringify(products));
-    renderAdminProducts();
-    renderMenu();
     document.getElementById('product-form').reset();
     document.getElementById('edit-index').value = "";
     document.getElementById('btn-cancel').classList.add('hidden');
 };
 
-window.deleteProduct = (idx) => {
+window.deleteProduct = async (id) => {
     if (confirm('Tem certeza que deseja remover este produto?')) {
-        products.splice(idx, 1);
-        localStorage.setItem('products', JSON.stringify(products));
-        renderAdminProducts();
-        renderMenu();
-        showToast('Produto removido com sucesso!', 'success');
+        showToast('Removendo produto...', 'info');
+        await postData({ action: 'deleteProduct', id: id });
+        
+        showToast('Produto removido! Atualizando...', 'success');
+        await initializeApp();
     }
 };
 
-window.editProduct = (idx) => {
-    const p = products[idx];
+window.editProduct = (id) => {
+    const p = products.find(prod => prod.id.toString() === id.toString());
+    if (!p) return;
     document.getElementById('prod-name').value = p.name;
     document.getElementById('prod-category').value = p.category;
     document.getElementById('prod-price').value = p.price;
     document.getElementById('prod-img').value = p.img;
     document.getElementById('prod-desc').value = p.desc;
-    document.getElementById('prod-options').value = p.options.join(', ');
-    document.getElementById('prod-extras').value = p.extras.join(', ');
-    document.getElementById('edit-index').value = idx;
+    document.getElementById('prod-options').value = p.options ? p.options.join(', ') : '';
+    document.getElementById('prod-extras').value = p.extras ? p.extras.join(', ') : '';
+    document.getElementById('edit-index').value = p.id;
     document.getElementById('btn-cancel').classList.remove('hidden');
     document.getElementById('tab-products').click();
     window.scrollTo(0, 0);
@@ -607,6 +488,77 @@ document.getElementById('btn-cancel').onclick = () => {
     document.getElementById('edit-index').value = "";
     document.getElementById('btn-cancel').classList.add('hidden');
 };
+
+
+// --- BAIRROS ---
+function renderAdminNeighborhoods() {
+    const list = document.getElementById('admin-neighborhoods-list');
+    list.innerHTML = '';
+    if (!neighborhoods) return;
+    
+    neighborhoods.forEach(n => {
+        const card = document.createElement('div');
+        card.className = 'neighborhood-card';
+        card.innerHTML = `
+            <div class="neighborhood-info">
+                <h4>${n.name}</h4>
+                <p>Taxa: R$ ${n.fee.toFixed(2)}</p>
+            </div>
+            <div class="neighborhood-actions">
+                <button class="btn-edit-neighborhood" onclick="editNeighborhood('${n.id}')" title="Editar"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete-neighborhood" onclick="deleteNeighborhood('${n.id}')" title="Deletar"><i class="fas fa-trash"></i></button>
+            </div>
+        `;
+        list.appendChild(card);
+    });
+}
+
+document.getElementById('neighborhood-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-neighborhood-index').value;
+    
+    const neighborhoodData = {
+        id: id || null,
+        name: document.getElementById('neighborhood-name').value,
+        fee: parseFloat(document.getElementById('neighborhood-fee-input').value)
+    };
+
+    showToast('Salvando bairro...', 'info');
+    await postData({ action: 'saveNeighborhood', data: neighborhoodData });
+
+    showToast('Bairro salvo! Atualizando...', 'success');
+    await initializeApp();
+
+    document.getElementById('neighborhood-form').reset();
+    document.getElementById('edit-neighborhood-index').value = "";
+    document.getElementById('btn-cancel-neighborhood').classList.add('hidden');
+};
+
+window.editNeighborhood = (id) => {
+    const n = neighborhoods.find(hood => hood.id.toString() === id.toString());
+    if (!n) return;
+    document.getElementById('neighborhood-name').value = n.name;
+    document.getElementById('neighborhood-fee-input').value = n.fee;
+    document.getElementById('edit-neighborhood-index').value = n.id;
+    document.getElementById('btn-cancel-neighborhood').classList.remove('hidden');
+};
+
+window.deleteNeighborhood = async (id) => {
+    if (confirm('Tem certeza que deseja remover este bairro?')) {
+        showToast('Removendo bairro...', 'info');
+        await postData({ action: 'deleteNeighborhood', id: id });
+
+        showToast('Bairro removido! Atualizando...', 'success');
+        await initializeApp();
+    }
+};
+
+document.getElementById('btn-cancel-neighborhood').onclick = () => {
+    document.getElementById('neighborhood-form').reset();
+    document.getElementById('edit-neighborhood-index').value = "";
+    document.getElementById('btn-cancel-neighborhood').classList.add('hidden');
+};
+
 
 //bairros dely
 
