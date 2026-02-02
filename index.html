@@ -1,129 +1,149 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+<!doctype html>
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Frutos de Goiás - Cardápio Digital</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <title>Frutos de Goiás</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+ 
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <header class="header-modern">
-        <div class="header-content">
-            <div class="logo-section">
-                <h1 class="logo-text">Frutos de Goiás</h1>
-                <span class="tagline">O sabor da fruta no palito</span>
-            </div>
-            <nav class="nav-buttons">
-                <button id="btn-view-menu" class="nav-btn active"><i class="fas fa-ice-cream"></i> Cardápio</button>
-                <button id="btn-view-admin" class="nav-btn"><i class="fas fa-user-shield"></i> Admin</button>
-            </nav>
-        </div>
-    </header>
-    <main class="container-modern">
-        <section id="menu-section" class="menu-section">
-            <div class="hero-banner">
-                <div class="hero-content">
-                    <h2 class="hero-title">Bem-vindo à Frutos de Goiás</h2>
-                    <p class="hero-subtitle">Escolha seus produtos favoritos e receba em casa!</p>
-                </div>
-            </div>
-            <div class="search-container">
-                <div class="search-wrapper">
-                    <i class="fas fa-search"></i>
-                    <input type="text" id="search-input" placeholder="Buscar produto...">
-                </div>
-            </div>
-            <div class="neighborhood-selector">
-                <label for="neighborhood-select">Selecione seu bairro para entrega:</label>
-                <div class="select-wrapper">
-                    <select id="neighborhood-select" class="input-modern">
-                        <option value="">-- Escolha um bairro --</option>
-                    </select>
-                    <span id="neighborhood-fee" class="neighborhood-fee">Taxa: -</span>
-                </div>
-            </div>
-            <div id="categories-container" class="categories-container"></div>
-        </section>
-        <section id="admin-section" class="admin-section hidden">
-            <div class="admin-header">
-                <h2>Painel Administrativo</h2>
-                <div class="admin-tabs">
-                    <button id="tab-products" class="admin-tab active"><i class="fas fa-box"></i> Produtos</button>
-                    <button id="tab-neighborhoods" class="admin-tab"><i class="fas fa-map-marker-alt"></i> Bairros</button>
-                </div>
-                <button id="btn-logout" class="btn-logout"><i class="fas fa-sign-out-alt"></i> Sair</button>
-            </div>
-            <div id="admin-products-tab" class="admin-tab-content active">
-                <div class="admin-form-section">
-                    <h3 id="product-form-title">Adicionar Novo Produto</h3>
-                    <form id="product-form" class="form-modern">
-                        <input type="hidden" id="edit-index">
-                        <div class="form-grid">
-                            <div class="form-group"><label>Nome:</label><input type="text" id="prod-name" required></div>
-                            <div class="form-group"><label>Categoria:</label><select id="prod-category" required><option value="Sorvetes">Sorvetes</option><option value="Picolés">Picolés</option><option value="Açaí">Açaí</option><option value="Outros">Outros</option></select></div>
-                            <div class="form-group"><label>Preço (R$):</label><input type="number" id="prod-price" step="0.01" required></div>
-                            <div class="form-group"><label>URL Imagem:</label><input type="text" id="prod-img"></div>
-                        </div>
-                        <div class="form-group"><label>Descrição:</label><textarea id="prod-desc" rows="2"></textarea></div>
-                        <div class="form-group"><label>Sabores (vírgula):</label><input type="text" id="prod-options"></div>
-                        <div class="form-group"><label>Extras (vírgula):</label><input type="text" id="prod-extras"></div>
-                        <div class="form-actions">
-                            <button type="submit" id="btn-save" class="btn-primary">Salvar</button>
-                            <button type="button" id="btn-cancel" class="btn-secondary hidden">Cancelar</button>
-                        </div>
-                    </form>
-                </div>
-                <div id="admin-product-list" class="products-list"></div>
-            </div>
-            <div id="admin-neighborhoods-tab" class="admin-tab-content">
-                <div class="admin-form-section">
-                    <h3 id="neighborhood-form-title">Adicionar Bairro</h3>
-                    <form id="neighborhood-form" class="form-modern">
-                        <input type="hidden" id="edit-neighborhood-index">
-                        <div class="form-grid">
-                            <div class="form-group"><label>Nome:</label><input type="text" id="neighborhood-name" required></div>
-                            <div class="form-group"><label>Taxa (R$):</label><input type="number" id="neighborhood-fee-input" step="0.01" required></div>
-                        </div>
-                        <button type="submit" class="btn-primary">Salvar Bairro</button>
-                    </form>
-                </div>
-                <div id="admin-neighborhoods-list" class="neighborhoods-list"></div>
-            </div>
-        </section>
-    </main>
-    <div id="options-modal" class="modal-overlay hidden">
-        <div class="modal-modern">
-            <button class="modal-close" id="btn-close-options">&times;</button>
-            <div class="modal-content">
-                <h3 id="modal-prod-name">Personalize</h3>
-                <div id="options-container"></div>
-                <div class="quantity-selector">
-                    <label>Qtd:</label>
-                    <div class="qty-controls">
-                        <button id="btn-qty-minus">-</button>
-                        <input type="number" id="qty-input" value="1" min="1">
-                        <button id="btn-qty-plus">+</button>
-                    </div>
-                </div>
-                <button id="btn-confirm-options" class="btn-primary">Adicionar</button>
-            </div>
-        </div>
+
+<header class="topbar">
+  <h1>🍦 Frutos de Goiás</h1>
+
+  <div class="top-actions">
+    <button id="btn-view-menu" class="active">Cardápio</button>
+    <button id="btn-view-admin">Admin</button>
+    <button id="open-cart">
+      <i class="fas fa-shopping-cart"></i>
+      <span id="cart-count">0</span>
+    </button>
+  </div>
+</header>
+
+<section class="search-bar">
+  <input type="text" id="search-input" placeholder="Buscar produto..." />
+</section>
+
+
+<section id="menu-section">
+  <div class="delivery-box">
+    <select id="neighborhood-select"></select>
+    <span id="neighborhood-fee">Taxa: -</span>
+  </div>
+
+  <div id="categories-container"></div>
+</section>
+
+
+<section id="admin-section" class="hidden">
+  <div class="admin-header">
+    <h2>Painel Administrativo</h2>
+    <button id="btn-logout">Sair</button>
+  </div>
+
+  <div class="admin-tabs">
+    <button id="tab-products" class="active">Produtos</button>
+    <button id="tab-neighborhoods">Bairros</button>
+  </div>
+
+  
+  <div id="admin-products-tab" class="active">
+    <form id="product-form" class="admin-form">
+      <h3 id="product-form-title">Adicionar Novo Produto</h3>
+
+      <input type="hidden" id="edit-index" />
+
+      <input id="prod-name" placeholder="Nome" required />
+      <input id="prod-category" placeholder="Categoria" required />
+      <input id="prod-price" type="number" step="0.01" placeholder="Preço" required />
+      <input id="prod-img" placeholder="URL da imagem" />
+      <textarea id="prod-desc" placeholder="Descrição"></textarea>
+      <input id="prod-options" placeholder="Sabores (separados por vírgula )" />
+      <input id="prod-extras" placeholder="Extras (separados por vírgula)" />
+
+      <div class="form-actions">
+        <button type="submit">Salvar</button>
+        <button type="button" id="btn-cancel" class="hidden">Cancelar</button>
+      </div>
+    </form>
+
+    <div id="admin-product-list"></div>
+  </div>
+
+
+  <div id="admin-neighborhoods-tab">
+    <form id="neighborhood-form" class="admin-form">
+      <h3 id="neighborhood-form-title">Adicionar Novo Bairro</h3>
+      <input type="hidden" id="edit-neighborhood-index" />
+      <input id="neighborhood-name" placeholder="Nome do bairro" required />
+      <input id="neighborhood-fee-input" type="number" step="0.01" placeholder="Taxa" required />
+      <button type="submit">Salvar</button>
+    </form>
+
+    <div id="admin-neighborhoods-list"></div>
+  </div>
+</section>
+
+
+<div id="options-modal" class="modal hidden">
+  <div class="modal-content">
+    <button id="btn-close-options" class="close">&times;</button>
+    <h3 id="modal-prod-name"></h3>
+
+    <div id="options-container"></div>
+
+    <div class="qty-control">
+      <button id="btn-qty-minus">-</button>
+      <input id="qty-input" type="number" value="1" readonly />
+      <button id="btn-qty-plus">+</button>
     </div>
-    <div id="cart-drawer" class="cart-drawer">
-        <div class="cart-header"><h3>Carrinho</h3><button id="close-cart">&times;</button></div>
-        <div id="cart-items" class="cart-items"></div>
-        <div class="cart-footer">
-            <div id="subtotal">R$ 0,00</div>
-            <div id="delivery-fee">R$ 0,00</div>
-            <div id="discount-row" style="display:none">Desconto: <span id="discount-amount"></span></div>
-            <div id="cart-total" style="font-weight:bold">R$ 0,00</div>
-            <input type="text" id="client-name" placeholder="Nome" class="input-modern">
-            <input type="text" id="client-address" placeholder="Endereço" class="input-modern">
-            <button id="btn-finish-order" class="btn-primary">Enviar WhatsApp</button>
-        </div>
+
+    <button id="btn-confirm-options" class="btn-primary">Adicionar ao carrinho</button>
+    <button id="btn-close-options-alt" class="btn-secondary">Cancelar</button>
+  </div>
+</div>
+
+
+<div id="cart-drawer" class="cart">
+  <div class="cart-header">
+    <h3>🛒 Carrinho</h3>
+    <button id="close-cart">&times;</button>
+  </div>
+
+  <div id="cart-items"></div>
+
+  <div class="cart-summary">
+    <div><span>Subtotal</span><span id="subtotal">R$ 0,00</span></div>
+    <div><span>Entrega</span><span id="delivery-fee">R$ 0,00</span></div>
+
+    <div id="discount-row" class="discount">
+      <span>Desconto</span>
+      <span id="discount-amount"></span>
     </div>
-    <button id="open-cart" class="cart-fab"><i class="fas fa-shopping-basket"></i><span id="cart-count" class="cart-badge">0</span></button>
-    <script src="script.js"></script>
+
+    <div class="total">
+      <strong>Total</strong>
+      <strong id="cart-total">R$ 0,00</strong>
+    </div>
+  </div>
+
+  <div class="checkout">
+    <input id="client-name" placeholder="Seu nome" />
+    <input id="client-address" placeholder="Endereço" />
+    <button id="btn-finish-order">Finalizar Pedido</button>
+  </div>
+</div>
+
+<script src="script.js"></script>
 </body>
 </html>

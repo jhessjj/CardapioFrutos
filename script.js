@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwEov8R9ezCTRfav64cILQmKWESOmiFtDF-s20YKOmrFPydO9Wf-q4dYJ1SsuxqiXCY2A/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyHvkV3atZ87uMzUJUT38in2rqt--nZj0y0IvGQ9Vr5lD9QcaMT9OGdon9tIDcImgkE0A/exec";
 const WHATSAPP_NUMBER = "558994127037";
 const ADMIN_PASSWORD = "Frutosp1725";
 const DISCOUNT_THRESHOLD = 50.00;
@@ -24,11 +24,9 @@ const cartDrawer = document.getElementById('cart-drawer');
 // Communication Functions
 async function fetchData(action) {
     try {
-        showToast('Carregando dados...', 'info');
         const response = await fetch(`${API_URL}?action=${action}`);
         if (!response.ok) throw new Error(`Erro na rede: ${response.statusText}`);
-        const data = await response.json();
-        return data;
+        return await response.json();
     } catch (error) {
         showToast(`Erro ao carregar: ${error.message}`, 'error');
         return [];
@@ -37,7 +35,7 @@ async function fetchData(action) {
 
 async function postData(payload) {
     try {
-        showToast('Salvando...', 'info');
+        showToast('Processando...', 'info');
         const response = await fetch(API_URL, {
             method: 'POST',
             body: JSON.stringify(payload)
@@ -47,7 +45,8 @@ async function postData(payload) {
         else showToast(result.message, 'error');
         return result;
     } catch (error) {
-        showToast(`Erro: ${error.message}`, 'error');
+        console.error('Erro no postData:', error);
+        showToast(`Erro ao salvar. Verifique a conexão.`, 'error');
         return { status: 'error', message: error.message };
     }
 }
@@ -58,7 +57,8 @@ async function initializeApp() {
         fetchData('getNeighborhoods')
     ]);
 
-    products = productsData.map(p => {
+    products = productsData.map((p, index) => {
+        
         if (typeof p.stock === 'string') {
             try { p.stock = JSON.parse(p.stock); } catch(e) { p.stock = {}; }
         }
@@ -82,21 +82,12 @@ function showToast(message, type = 'info') {
     
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    toast.style.cssText = `
-        position: fixed; bottom: 20px; right: 20px; padding: 15px 25px;
-        border-radius: 8px; color: white; font-weight: bold; z-index: 9999;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s ease;
-        transform: translateY(100px); opacity: 0;
-    `;
-    
-    const colors = { info: '#2196f3', success: '#4caf50', error: '#f44336', warning: '#ff9800' };
-    toast.style.backgroundColor = colors[type] || colors.info;
     toast.innerText = message;
     document.body.appendChild(toast);
     
-    setTimeout(() => { toast.style.transform = 'translateY(0)'; toast.style.opacity = '1'; }, 10);
+    setTimeout(() => toast.classList.add('show'), 10);
     setTimeout(() => {
-        toast.style.transform = 'translateY(100px)'; toast.style.opacity = '0';
+        toast.classList.remove('show');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
@@ -149,7 +140,7 @@ document.getElementById('tab-neighborhoods').onclick = () => {
 function renderMenu(filter = '') {
     categoriesContainer.innerHTML = '';
     if (!products || products.length === 0) {
-        categoriesContainer.innerHTML = '<p style="text-align:center; padding: 20px;">Nenhum produto encontrado.</p>';
+        categoriesContainer.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>Nenhum produto encontrado.</p></div>';
         return;
     }
     const categories = [...new Set(products.map(p => p.category))];
@@ -161,13 +152,12 @@ function renderMenu(filter = '') {
         const section = document.createElement('div');
         section.className = 'category-section';
         
-        const title = document.createElement('h2');
-        title.className = 'category-title';
-        title.innerText = cat;
-        section.appendChild(title);
+        section.innerHTML = `
+            <h2 class="category-title">${cat}</h2>
+            <div class="product-grid"></div>
+        `;
         
-        const grid = document.createElement('div');
-        grid.className = 'product-grid';
+        const grid = section.querySelector('.product-grid');
         
         catProducts.forEach(prod => {
             const card = document.createElement('div');
@@ -177,20 +167,20 @@ function renderMenu(filter = '') {
             const isOutOfStock = totalStock <= 0;
 
             card.innerHTML = `
-                <img src="${prod.img || 'https://via.placeholder.com/250x200'}" class="product-img" alt="${prod.name}">
+                <div class="product-image">
+                    ${prod.img ? `<img src="${prod.img}" alt="${prod.name}">` : '<span>🍨</span>'}
+                </div>
                 <div class="product-info">
-                    <h3>${prod.name}</h3>
-                    <p>${prod.desc || ''}</p>
+                    <div class="product-name">${prod.name}</div>
                     <div class="product-price">R$ ${parseFloat(prod.price).toFixed(2)}</div>
                     <button class="btn-add-cart" ${isOutOfStock ? 'disabled' : ''} onclick="openOptions('${prod.id}')">
-                        ${isOutOfStock ? '❌ Esgotado' : '🛒 Escolher'}
+                        ${isOutOfStock ? 'Indisponível' : 'Adicionar'}
                     </button>
                 </div>
             `;
             grid.appendChild(card);
         });
         
-        section.appendChild(grid);
         categoriesContainer.appendChild(section);
     });
 }
@@ -204,7 +194,7 @@ document.getElementById('search-input').oninput = (e) => {
 function renderNeighborhoodSelector() {
     const select = document.getElementById('neighborhood-select');
     if (!select) return;
-    select.innerHTML = '<option value="">-- Escolha um bairro --</option>';
+    select.innerHTML = '<option value="">-- Escolha seu bairro --</option>';
     neighborhoods.forEach(n => {
         const option = document.createElement('option');
         option.value = n.name;
@@ -220,10 +210,23 @@ document.getElementById('neighborhood-select').onchange = (e) => {
     updateCart();
 };
 
+// Helper para verificar se cobra por sabor
+function isChargePerFlavor(category) {
+    const cat = category.toLowerCase();
+    return cat.includes('picolé') || cat.includes('pote');
+}
+
 // Options Modal
 window.openOptions = (productId) => {
-    currentProductForOptions = products.find(p => p.id.toString() === productId.toString());
-    if (!currentProductForOptions) return;
+    // CORRIGIDO: Melhor busca por ID
+    currentProductForOptions = products.find(p => {
+        return p.id.toString() === productId.toString();
+    });
+    
+    if (!currentProductForOptions) {
+        showToast('Produto não encontrado!', 'error');
+        return;
+    }
 
     selectedOptions = [];
     selectedExtras = [];
@@ -236,9 +239,14 @@ window.openOptions = (productId) => {
     container.innerHTML = '';
 
     if (currentProductForOptions.options && currentProductForOptions.options.length > 0) {
+        const chargePerFlavor = isChargePerFlavor(currentProductForOptions.category);
+        const subTitle = chargePerFlavor 
+            ? `Cada sabor selecionado equivale a uma unidade (R$ ${parseFloat(currentProductForOptions.price).toFixed(2)} cada)`
+            : `Preço fixo por item: R$ ${parseFloat(currentProductForOptions.price).toFixed(2)}`;
+
         const group = document.createElement('div');
         group.className = 'option-group';
-        group.innerHTML = '<h4>Escolha os Sabores:</h4>';
+        group.innerHTML = `<label>Sabores</label>`;
         const list = document.createElement('div');
         list.className = 'option-list';
         
@@ -249,16 +257,21 @@ window.openOptions = (productId) => {
             
             const item = document.createElement('div');
             item.className = `option-item ${stockQty <= 0 ? 'disabled' : ''}`;
-            item.innerText = opt;
+            item.innerHTML = `<span>${opt}</span> ${stockQty <= 5 && stockQty > 0 ? `<small class="low-stock">Últimas ${stockQty}</small>` : ''}`;
             
-            item.onclick = () => {
-                if (stockQty <= 0) return;
-                item.classList.toggle('selected');
-                if (item.classList.contains('selected')) selectedOptions.push(opt);
-                else selectedOptions = selectedOptions.filter(o => o !== opt);
-            };
+            if (stockQty > 0) {
+                item.onclick = () => {
+                    item.classList.toggle('selected');
+                    if (item.classList.contains('selected')) {
+                        selectedOptions.push(opt);
+                    } else {
+                        selectedOptions = selectedOptions.filter(o => o !== opt);
+                    }
+                };
+            }
             list.appendChild(item);
         });
+        
         group.appendChild(list);
         container.appendChild(group);
     }
@@ -266,20 +279,25 @@ window.openOptions = (productId) => {
     if (currentProductForOptions.extras && currentProductForOptions.extras.length > 0) {
         const group = document.createElement('div');
         group.className = 'option-group';
-        group.innerHTML = '<h4>Complementos:</h4>';
+        group.innerHTML = `<label>Extras</label>`;
         const list = document.createElement('div');
         list.className = 'option-list';
-        currentProductForOptions.extras.forEach(ext => {
+        
+        currentProductForOptions.extras.forEach(extra => {
             const item = document.createElement('div');
             item.className = 'option-item';
-            item.innerText = ext;
+            item.innerText = extra;
             item.onclick = () => {
                 item.classList.toggle('selected');
-                if (item.classList.contains('selected')) selectedExtras.push(ext);
-                else selectedExtras = selectedExtras.filter(e => e !== ext);
+                if (item.classList.contains('selected')) {
+                    selectedExtras.push(extra);
+                } else {
+                    selectedExtras = selectedExtras.filter(e => e !== extra);
+                }
             };
             list.appendChild(item);
         });
+        
         group.appendChild(list);
         container.appendChild(group);
     }
@@ -291,34 +309,35 @@ document.getElementById('btn-close-options').onclick = () => optionsModal.classL
 document.getElementById('btn-close-options-alt').onclick = () => optionsModal.classList.add('hidden');
 
 document.getElementById('btn-qty-minus').onclick = () => {
-    const input = document.getElementById('qty-input');
-    if (parseInt(input.value) > 1) input.value = parseInt(input.value) - 1;
+    selectedQuantity = Math.max(1, selectedQuantity - 1);
+    document.getElementById('qty-input').value = selectedQuantity;
 };
 
 document.getElementById('btn-qty-plus').onclick = () => {
-    const input = document.getElementById('qty-input');
-    if (parseInt(input.value) < 99) input.value = parseInt(input.value) + 1;
+    selectedQuantity++;
+    document.getElementById('qty-input').value = selectedQuantity;
 };
 
 document.getElementById('btn-confirm-options').onclick = () => {
-    if (selectedOptions.length === 0 && currentProductForOptions.options && currentProductForOptions.options.length > 0) {
-        showToast('Por favor, escolha pelo menos um sabor.', 'warning');
+    if (currentProductForOptions.options && currentProductForOptions.options.length > 0 && selectedOptions.length === 0) {
+        showToast('Selecione pelo menos um sabor!', 'warning');
         return;
     }
-    
-    selectedQuantity = parseInt(document.getElementById('qty-input').value) || 1;
-    
-    cart.push({
-        ...currentProductForOptions,
+
+    const item = {
+        id: currentProductForOptions.id,
+        name: currentProductForOptions.name,
+        price: currentProductForOptions.price,
+        qty: selectedQuantity,
         chosenOptions: [...selectedOptions],
         chosenExtras: [...selectedExtras],
-        qty: selectedQuantity,
         totalPrice: currentProductForOptions.price * selectedQuantity
-    });
-    
+    };
+
+    cart.push(item);
     updateCart();
     optionsModal.classList.add('hidden');
-    cartDrawer.classList.add('open');
+    showToast(`${currentProductForOptions.name} adicionado ao carrinho!`, 'success');
 };
 
 // Cart Logic
@@ -327,25 +346,31 @@ function updateCart() {
     list.innerHTML = '';
     let subtotal = 0;
     
-    cart.forEach((item, idx) => {
-        subtotal += item.totalPrice;
-        const div = document.createElement('div');
-        div.className = 'cart-item';
-        div.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <strong>${item.qty}x ${item.name}</strong>
-                <span>R$ ${item.totalPrice.toFixed(2)}</span>
-            </div>
-            <div style="font-size:0.8rem; color:#666;">
-                ${item.chosenOptions.length ? '🍨 ' + item.chosenOptions.join(', ') : ''}
-                ${item.chosenExtras.length ? ' ✨' + item.chosenExtras.join(', ') : ''}
-            </div>
-            <button onclick="removeFromCart(${idx})" style="color:red; border:none; background:none; cursor:pointer; font-size:0.8rem; margin-top:5px;">
-                <i class="fas fa-trash"></i> Remover
-            </button>
-        `;
-        list.appendChild(div);
-    });
+    if (cart.length === 0) {
+        list.innerHTML = '<div class="empty-cart"><i class="fas fa-shopping-basket"></i><p>Seu carrinho está vazio</p></div>';
+    } else {
+        cart.forEach((item, idx) => {
+            subtotal += item.totalPrice;
+            const div = document.createElement('div');
+            div.className = 'cart-item';
+            div.innerHTML = `
+                <div class="cart-item-info">
+                    <div class="cart-item-header">
+                        <strong>${item.qty}x ${item.name}</strong>
+                        <span class="cart-item-price">R$ ${item.totalPrice.toFixed(2)}</span>
+                    </div>
+                    <div class="cart-item-details">
+                        ${item.chosenOptions.length ? '<span>🍨 Sabores: ' + item.chosenOptions.join(', ') + '</span>' : ''}
+                        ${item.chosenExtras.length ? '<span>✨ Extras: ' + item.chosenExtras.join(', ') + '</span>' : ''}
+                    </div>
+                    <button class="btn-remove-item" onclick="removeFromCart(${idx})">
+                        <i class="fas fa-trash-alt"></i> Remover
+                    </button>
+                </div>
+            `;
+            list.appendChild(div);
+        });
+    }
     
     const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
     const deliveryFee = neighborhood ? neighborhood.fee : 0;
@@ -358,7 +383,7 @@ function updateCart() {
     const discountRow = document.getElementById('discount-row');
     if (discount > 0) {
         discountRow.style.display = 'flex';
-        document.getElementById('discount-amount').innerText = `-R$ ${discount.toFixed(2)}`;
+        document.getElementById('discount-amount').innerText = `- R$ ${discount.toFixed(2)}`;
     } else {
         discountRow.style.display = 'none';
     }
@@ -381,34 +406,48 @@ document.getElementById('btn-finish-order').onclick = async () => {
     const address = document.getElementById('client-address').value;
     
     if (!name || !address || !selectedNeighborhood) { 
-        showToast('Preencha todos os dados de entrega!', 'warning'); 
+        showToast('Preencha nome, endereço e bairro!', 'warning'); 
         return; 
     }
     
     const stockUpdates = [];
     cart.forEach(item => {
-        item.chosenOptions.forEach(flavor => {
-            stockUpdates.push({ productId: item.id, flavor: flavor, qty: item.qty });
-        });
+        if (item.chosenOptions.length > 0) {
+            const chargePerFlavor = isChargePerFlavor(item.category);
+            item.chosenOptions.forEach(flavor => {
+                const qtyToDiscount = chargePerFlavor ? 1 : (item.qty / item.chosenOptions.length);
+                stockUpdates.push({ productId: item.id, flavor: flavor, qty: qtyToDiscount });
+            });
+        }
     });
 
     try {
-        await postData({ action: 'updateStockByFlavor', updates: stockUpdates });
+        if (stockUpdates.length > 0) {
+            await postData({ action: 'updateStockByFlavor', updates: stockUpdates });
+        }
     } catch (e) { console.error(e); }
 
-    let msg = `*Novo Pedido*\n\n*Cliente:* ${name}\n*Endereço:* ${address}\n*Bairro:* ${selectedNeighborhood}\n\n`;
+    let msg = `🍦 *Novo Pedido - Frutos de Goiás*\n\n`;
+    msg += `👤 *Cliente:* ${name}\n`;
+    msg += `📍 *Endereço:* ${address}\n`;
+    msg += `🏘️ *Bairro:* ${selectedNeighborhood}\n\n`;
+    msg += `🛒 *Itens:*\n`;
+    
     cart.forEach(item => {
-        msg += `*${item.qty}x ${item.name}* - R$ ${item.totalPrice.toFixed(2)}\n`;
-        if (item.chosenOptions.length) msg += ` Sabores: ${item.chosenOptions.join(', ')}\n`;
-        if (item.chosenExtras.length) msg += ` Extras: ${item.chosenExtras.join(', ')}\n`;
-        msg += `\n`;
+        msg += `• *${item.qty}x ${item.name}* (R$ ${item.totalPrice.toFixed(2)})\n`;
+        if (item.chosenOptions.length) msg += `  _Sabores: ${item.chosenOptions.join(', ')}_\n`;
+        if (item.chosenExtras.length) msg += `  _Extras: ${item.chosenExtras.join(', ')}_\n`;
     });
     
     const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
     const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
     const deliveryFee = neighborhood ? neighborhood.fee : 0;
     const discount = subtotal >= DISCOUNT_THRESHOLD ? DISCOUNT_AMOUNT : 0;
-    msg += `*Total: R$ ${(subtotal + deliveryFee - discount).toFixed(2)}*`;
+    
+    msg += `\n💰 *Subtotal:* R$ ${subtotal.toFixed(2)}`;
+    msg += `\n🚚 *Entrega:* R$ ${deliveryFee.toFixed(2)}`;
+    if (discount > 0) msg += `\n🎁 *Desconto:* -R$ ${discount.toFixed(2)}`;
+    msg += `\n\n⭐ *TOTAL: R$ ${(subtotal + deliveryFee - discount).toFixed(2)}*`;
 
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
     
@@ -427,36 +466,35 @@ function renderAdminProducts() {
             p.options.forEach(opt => {
                 const qty = (p.stock && p.stock[opt] !== undefined) ? p.stock[opt] : 0;
                 stockHTML += `
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; background:#f9f9f9; padding:5px; border-radius:4px;">
+                    <div class="admin-stock-item">
                         <span>${opt}</span>
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <button onclick="adjustStock('${p.id}', '${opt}', -1)" style="padding:2px 8px;">-</button>
-                            <strong style="min-width:20px; text-align:center;">${qty}</strong>
-                            <button onclick="adjustStock('${p.id}', '${opt}', 1)" style="padding:2px 8px;">+</button>
+                        <div class="admin-stock-controls">
+                            <button onclick="adjustStock('${p.id}', '${opt}', -1)" class="btn-stock-minus">−</button>
+                            <span class="stock-qty-badge">${qty}</span>
+                            <button onclick="adjustStock('${p.id}', '${opt}', 1)" class="btn-stock-plus">+</button>
                         </div>
                     </div>`;
             });
         } else {
-            stockHTML = '<p style="color:#999; font-size:12px; text-align:center;">Sem sabores definidos</p>';
+            stockHTML = '<p class="no-options-msg">Sem sabores definidos</p>';
         }
 
         const card = document.createElement('div');
-        card.className = 'product-admin-card';
-        card.style.cssText = 'background:white; border:1px solid #ddd; border-radius:8px; padding:15px; margin-bottom:15px;';
+        card.className = 'admin-product-card';
         card.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:10px;">
-                <div>
-                    <h4 style="margin:0;">${p.name}</h4>
-                    <small>${p.category} | R$ ${parseFloat(p.price).toFixed(2)}</small>
+            <div class="admin-card-header">
+                <div class="admin-card-title">
+                    <h4>${p.name}</h4>
+                    <span class="admin-card-meta">${p.category} • R$ ${parseFloat(p.price).toFixed(2)}</span>
                 </div>
-                <div>
-                    <button onclick="editProduct('${p.id}')" style="color:blue; border:none; background:none; cursor:pointer;"><i class="fas fa-edit"></i></button>
-                    <button onclick="deleteProduct('${p.id}')" style="color:red; border:none; background:none; cursor:pointer;"><i class="fas fa-trash"></i></button>
+                <div class="admin-card-actions">
+                    <button onclick="editProduct('${p.id}')" class="btn-icon-edit"><i class="fas fa-edit"></i></button>
+                    <button onclick="deleteProduct('${p.id}')" class="btn-icon-delete"><i class="fas fa-trash"></i></button>
                 </div>
             </div>
-            <div style="border-top:1px solid #eee; padding-top:10px;">
-                <h5 style="margin:0 0 10px 0;">Estoque:</h5>
-                ${stockHTML}
+            <div class="admin-card-stock">
+                <h5>Controle de Estoque</h5>
+                <div class="admin-stock-list">${stockHTML}</div>
             </div>
         `;
         adminProductList.appendChild(card);
@@ -464,13 +502,19 @@ function renderAdminProducts() {
 }
 
 window.adjustStock = async (productId, flavor, amount) => {
+    // CORRIGIDO: Melhor busca por ID
     const p = products.find(prod => prod.id.toString() === productId.toString());
-    if (!p) return;
+    if (!p) {
+        showToast('Produto não encontrado!', 'error');
+        return;
+    }
+    
     if (!p.stock) p.stock = {};
     p.stock[flavor] = Math.max(0, (p.stock[flavor] || 0) + amount);
     
-    await postData({ action: 'saveProduct', data: { ...p, stock: JSON.stringify(p.stock) } });
-    await initializeApp();
+    renderAdminProducts(); 
+    
+    const result = await postData({ action: 'saveProduct', data: { ...p, stock: JSON.stringify(p.stock) } });
 };
 
 document.getElementById('product-form').onsubmit = async (e) => {
@@ -506,28 +550,54 @@ document.getElementById('product-form').onsubmit = async (e) => {
         document.getElementById('product-form').reset();
         document.getElementById('edit-index').value = "";
         document.getElementById('product-form-title').innerText = "Adicionar Novo Produto";
+        document.getElementById('btn-cancel').classList.add('hidden');
     }
 };
 
 window.editProduct = (id) => {
+    // CORRIGIDO: Melhor busca por ID
     const p = products.find(prod => prod.id.toString() === id.toString());
-    if (!p) return;
+    if (!p) {
+        showToast('Produto não encontrado!', 'error');
+        return;
+    }
+    
     document.getElementById('prod-name').value = p.name;
     document.getElementById('prod-category').value = p.category;
     document.getElementById('prod-price').value = p.price;
-    document.getElementById('prod-img').value = p.img;
-    document.getElementById('prod-desc').value = p.desc;
-    document.getElementById('prod-options').value = p.options.join(', ');
-    document.getElementById('prod-extras').value = p.extras.join(', ');
+    document.getElementById('prod-img').value = p.img || '';
+    document.getElementById('prod-desc').value = p.desc || '';
+    document.getElementById('prod-options').value = (p.options || []).join(', ');
+    document.getElementById('prod-extras').value = (p.extras || []).join(', ');
     document.getElementById('edit-index').value = p.id;
     document.getElementById('product-form-title').innerText = "Editar Produto";
+    document.getElementById('btn-cancel').classList.remove('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
+document.getElementById('btn-cancel').onclick = () => {
+    document.getElementById('product-form').reset();
+    document.getElementById('edit-index').value = "";
+    document.getElementById('product-form-title').innerText = "Adicionar Novo Produto";
+    document.getElementById('btn-cancel').classList.add('hidden');
+};
+
+
 window.deleteProduct = async (id) => {
-    if (confirm('Deseja remover este produto?')) {
-        await postData({ action: 'deleteProduct', id: id });
-        await initializeApp();
+    console.log('Deletando produto com ID:', id);
+    
+    // Validar se o produto existe
+    const product = products.find(p => p.id.toString() === id.toString());
+    if (!product) {
+        showToast('Produto não encontrado!', 'error');
+        return;
+    }
+    
+    if (confirm(`Deseja remover "${product.name}" permanentemente?`)) {
+        const result = await postData({ action: 'deleteProduct', id: id });
+        if (result.status === 'success') {
+            await initializeApp();
+        }
     }
 };
 
@@ -535,52 +605,59 @@ window.deleteProduct = async (id) => {
 function renderAdminNeighborhoods() {
     const list = document.getElementById('admin-neighborhoods-list');
     list.innerHTML = '';
-    neighborhoods.forEach(n => {
+    neighborhoods.forEach((n, index) => {
         const div = document.createElement('div');
-        div.style.cssText = 'display:flex; justify-content:space-between; background:white; padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid #ddd;';
+        div.className = 'admin-neighborhood-card';
         div.innerHTML = `
-            <div>
-                <strong>${n.name}</strong><br>
-                <small>Taxa: R$ ${parseFloat(n.fee).toFixed(2)}</small>
-            </div>
-            <div>
-                <button onclick="editNeighborhood('${n.id}')" style="color:blue; border:none; background:none; cursor:pointer;"><i class="fas fa-edit"></i></button>
-                <button onclick="deleteNeighborhood('${n.id}')" style="color:red; border:none; background:none; cursor:pointer;"><i class="fas fa-trash"></i></button>
+            <div class="admin-card-header">
+                <div class="admin-card-title">
+                    <h4>${n.name}</h4>
+                    <span class="admin-card-meta">Taxa: R$ ${parseFloat(n.fee).toFixed(2)}</span>
+                </div>
+                <div class="admin-card-actions">
+                    <button onclick="editNeighborhood(${index})" class="btn-icon-edit"><i class="fas fa-edit"></i></button>
+                    <button onclick="deleteNeighborhood(${index})" class="btn-icon-delete"><i class="fas fa-trash"></i></button>
+                </div>
             </div>
         `;
         list.appendChild(div);
     });
 }
 
+window.editNeighborhood = (index) => {
+    const n = neighborhoods[index];
+    if (!n) return;
+    document.getElementById('neighborhood-name').value = n.name;
+    document.getElementById('neighborhood-fee-input').value = n.fee;
+    document.getElementById('edit-neighborhood-index').value = index;
+    document.getElementById('neighborhood-form-title').innerText = "Editar Bairro";
+};
+
+window.deleteNeighborhood = async (index) => {
+    const n = neighborhoods[index];
+    if (!n) return;
+    
+    if (confirm(`Deseja remover "${n.name}" permanentemente?`)) {
+        await postData({ action: 'deleteNeighborhood', index: index });
+        await initializeApp();
+    }
+};
+
 document.getElementById('neighborhood-form').onsubmit = async (e) => {
     e.preventDefault();
-    const id = document.getElementById('edit-neighborhood-index').value;
-    const neighborhoodData = {
-        id: id || null,
-        name: document.getElementById('neighborhood-name').value,
-        fee: parseFloat(document.getElementById('neighborhood-fee-input').value)
-    };
-    const result = await postData({ action: 'saveNeighborhood', data: neighborhoodData });
+    const index = document.getElementById('edit-neighborhood-index').value;
+    const name = document.getElementById('neighborhood-name').value;
+    const fee = parseFloat(document.getElementById('neighborhood-fee-input').value);
+
+    const result = await postData({ 
+        action: 'saveNeighborhood', 
+        data: { name, fee, index: index ? parseInt(index) : null }
+    });
+
     if (result.status === 'success') {
         await initializeApp();
         document.getElementById('neighborhood-form').reset();
         document.getElementById('edit-neighborhood-index').value = "";
         document.getElementById('neighborhood-form-title').innerText = "Adicionar Novo Bairro";
-    }
-};
-
-window.editNeighborhood = (id) => {
-    const n = neighborhoods.find(hood => hood.id.toString() === id.toString());
-    if (!n) return;
-    document.getElementById('neighborhood-name').value = n.name;
-    document.getElementById('neighborhood-fee-input').value = n.fee;
-    document.getElementById('edit-neighborhood-index').value = n.id;
-    document.getElementById('neighborhood-form-title').innerText = "Editar Bairro";
-};
-
-window.deleteNeighborhood = async (id) => {
-    if (confirm('Deseja remover este bairro?')) {
-        await postData({ action: 'deleteNeighborhood', id: id });
-        await initializeApp();
     }
 };
