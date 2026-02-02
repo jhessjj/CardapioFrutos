@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbyHvkV3atZ87uMzUJUT38in2rqt--nZj0y0IvGQ9Vr5lD9QcaMT9OGdon9tIDcImgkE0A/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycby6h6lQ5rZeRTntZkErmcjvY3e7Bo5I9DK65fwRTYuUZRiJfbZCpeUoVL-INpmC9QS_5g/exec";
 const WHATSAPP_NUMBER = "558994127037";
 const ADMIN_PASSWORD = "Frutosp1725";
 const DISCOUNT_THRESHOLD = 50.00;
@@ -58,7 +58,10 @@ async function initializeApp() {
     ]);
 
     products = productsData.map((p, index) => {
-        
+        // Normaliza campos que podem vir com nomes diferentes da planilha
+        if (p.extra && !p.extras) p.extras = p.extra;
+        if (p.option && !p.options) p.options = p.option;
+
         if (typeof p.stock === 'string') {
             try { p.stock = JSON.parse(p.stock); } catch(e) { p.stock = {}; }
         }
@@ -163,8 +166,17 @@ function renderMenu(filter = '') {
             const card = document.createElement('div');
             card.className = 'product-card';
             
-            const totalStock = prod.stock ? Object.values(prod.stock).reduce((a, b) => a + b, 0) : 1;
-            const isOutOfStock = totalStock <= 0;
+            // Se não houver sabores definidos ou o objeto de estoque estiver totalmente vazio {}, 
+            // permitimos a venda (consideramos disponível por padrão).
+            // O bloqueio só acontece se houver sabores e TODOS estiverem com valor 0.
+            let isOutOfStock = false;
+            if (prod.options && prod.options.length > 0) {
+                const hasStockData = prod.stock && Object.keys(prod.stock).length > 0;
+                if (hasStockData) {
+                    const totalStock = Object.values(prod.stock).reduce((a, b) => a + (Number(b) || 0), 0);
+                    if (totalStock <= 0) isOutOfStock = true;
+                }
+            }
 
             card.innerHTML = `
                 <div class="product-image">
@@ -212,16 +224,22 @@ document.getElementById('neighborhood-select').onchange = (e) => {
 
 // Helper para verificar se cobra por sabor
 function isChargePerFlavor(category) {
+    if (!category) return false;
     const cat = category.toLowerCase();
-    return cat.includes('picolé') || cat.includes('pote');
+    
+    // O Self Service é a única exceção onde o preço é fixo independente dos sabores
+    if (cat.includes('self service') || cat.includes('self-service')) {
+        return false;
+    }
+    
+    // Para todas as outras categorias (Picolés, Potes de 1L, 1.5L, Copos, etc), 
+    // se o produto tem opções de sabores, cada sabor selecionado deve ser cobrado individualmente.
+    return true;
 }
 
 // Options Modal
 window.openOptions = (productId) => {
-    // CORRIGIDO: Melhor busca por ID
-    currentProductForOptions = products.find(p => {
-        return p.id.toString() === productId.toString();
-    });
+    currentProductForOptions = products.find(p => p.id.toString() === productId.toString());
     
     if (!currentProductForOptions) {
         showToast('Produto não encontrado!', 'error');
@@ -239,11 +257,6 @@ window.openOptions = (productId) => {
     container.innerHTML = '';
 
     if (currentProductForOptions.options && currentProductForOptions.options.length > 0) {
-        const chargePerFlavor = isChargePerFlavor(currentProductForOptions.category);
-        const subTitle = chargePerFlavor 
-            ? `Cada sabor selecionado equivale a uma unidade (R$ ${parseFloat(currentProductForOptions.price).toFixed(2)} cada)`
-            : `Preço fixo por item: R$ ${parseFloat(currentProductForOptions.price).toFixed(2)}`;
-
         const group = document.createElement('div');
         group.className = 'option-group';
         group.innerHTML = `<label>Sabores</label>`;
@@ -251,15 +264,20 @@ window.openOptions = (productId) => {
         list.className = 'option-list';
         
         currentProductForOptions.options.forEach(opt => {
-            const stockQty = (currentProductForOptions.stock && currentProductForOptions.stock[opt] !== undefined) 
-                ? currentProductForOptions.stock[opt] 
-                : 10;
+            // Se o sabor não existir no objeto stock, assumimos que tem estoque (disponível por padrão)
+            // Só bloqueia se o valor estiver explicitamente como 0
+            const stockValue = currentProductForOptions.stock ? currentProductForOptions.stock[opt] : undefined;
+            const stockQty = stockValue !== undefined ? Number(stockValue) : 999;
             
             const item = document.createElement('div');
-            item.className = `option-item ${stockQty <= 0 ? 'disabled' : ''}`;
-            item.innerHTML = `<span>${opt}</span> ${stockQty <= 5 && stockQty > 0 ? `<small class="low-stock">Últimas ${stockQty}</small>` : ''}`;
+            const isOut = stockQty <= 0;
+            item.className = `option-item ${isOut ? 'disabled' : ''}`;
+            item.innerHTML = `
+                <span>${opt}</span> 
+                ${isOut ? '<small class="out-of-stock">Esgotado</small>' : (stockQty <= 5 ? `<small class="low-stock">Últimas ${stockQty}</small>` : '')}
+            `;
             
-            if (stockQty > 0) {
+            if (!isOut) {
                 item.onclick = () => {
                     item.classList.toggle('selected');
                     if (item.classList.contains('selected')) {
@@ -324,14 +342,19 @@ document.getElementById('btn-confirm-options').onclick = () => {
         return;
     }
 
+    const chargePerFlavor = isChargePerFlavor(currentProductForOptions.category);
+    // Se cobrar por sabor, a quantidade final é o número de sabores. Se não, é a quantidade do seletor.
+    const finalQty = chargePerFlavor ? selectedOptions.length : selectedQuantity;
+    
     const item = {
         id: currentProductForOptions.id,
         name: currentProductForOptions.name,
+        category: currentProductForOptions.category,
         price: currentProductForOptions.price,
-        qty: selectedQuantity,
+        qty: finalQty,
         chosenOptions: [...selectedOptions],
         chosenExtras: [...selectedExtras],
-        totalPrice: currentProductForOptions.price * selectedQuantity
+        totalPrice: currentProductForOptions.price * finalQty
     };
 
     cart.push(item);
@@ -401,7 +424,6 @@ document.getElementById('open-cart').onclick = () => cartDrawer.classList.add('o
 document.getElementById('close-cart').onclick = () => cartDrawer.classList.remove('open');
 
 document.getElementById('btn-finish-order').onclick = async () => {
-    // 1. Validações Iniciais
     if (cart.length === 0) { 
         showToast('Seu carrinho está vazio!', 'error'); 
         return; 
@@ -415,7 +437,6 @@ document.getElementById('btn-finish-order').onclick = async () => {
         return; 
     }
 
-    
     let msg = `🍦 *Novo Pedido - Frutos de Goiás*\n\n`;
     msg += `👤 *Cliente:* ${name}\n`;
     msg += `📍 *Endereço:* ${address}\n`;
@@ -439,13 +460,13 @@ document.getElementById('btn-finish-order').onclick = async () => {
     if (discount > 0) msg += `\n🎁 *Desconto:* -R$ ${discount.toFixed(2)}`;
     msg += `\n\n⭐ *TOTAL: R$ ${totalGeral.toFixed(2)}*`;
 
-
     try {
         const stockUpdates = [];
         cart.forEach(item => {
             if (item.chosenOptions && item.chosenOptions.length > 0) {
-                const chargePerFlavor = typeof isChargePerFlavor === 'function' ? isChargePerFlavor(item.category || "") : false;
+                const chargePerFlavor = isChargePerFlavor(item.category || "");
                 item.chosenOptions.forEach(flavor => {
+                    // Se cobra por sabor, cada sabor desconta 1. Se não (self service), divide a quantidade total entre os sabores.
                     const qtyToDiscount = chargePerFlavor ? 1 : (item.qty / item.chosenOptions.length);
                     stockUpdates.push({ productId: item.id, flavor: flavor, qty: qtyToDiscount });
                 });
@@ -453,29 +474,22 @@ document.getElementById('btn-finish-order').onclick = async () => {
         });
 
         if (stockUpdates.length > 0) {
-      
             postData({ action: 'updateStockByFlavor', updates: stockUpdates });
         }
     } catch (e) { 
         console.error("Erro ao processar estoque:", e); 
     }
 
-   
-    const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg )}`;
-    
-    
+    const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
     const newWindow = window.open(whatsappUrl, '_blank');
     if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
         window.location.href = whatsappUrl;
     }
     
-  
     cart = [];
     updateCart();
     if (cartDrawer) cartDrawer.classList.remove('open');
     showToast('Pedido enviado com sucesso!', 'success');
-    
-    // Recarrega os dados para atualizar o estoque visualmente
     setTimeout(() => initializeApp(), 2000);
 };
 
@@ -524,7 +538,6 @@ function renderAdminProducts() {
 }
 
 window.adjustStock = async (productId, flavor, amount) => {
-    // CORRIGIDO: Melhor busca por ID
     const p = products.find(prod => prod.id.toString() === productId.toString());
     if (!p) {
         showToast('Produto não encontrado!', 'error');
@@ -535,7 +548,6 @@ window.adjustStock = async (productId, flavor, amount) => {
     p.stock[flavor] = Math.max(0, (p.stock[flavor] || 0) + amount);
     
     renderAdminProducts(); 
-    
     const result = await postData({ action: 'saveProduct', data: { ...p, stock: JSON.stringify(p.stock) } });
 };
 
@@ -577,7 +589,6 @@ document.getElementById('product-form').onsubmit = async (e) => {
 };
 
 window.editProduct = (id) => {
-    // CORRIGIDO: Melhor busca por ID
     const p = products.find(prod => prod.id.toString() === id.toString());
     if (!p) {
         showToast('Produto não encontrado!', 'error');
@@ -604,11 +615,7 @@ document.getElementById('btn-cancel').onclick = () => {
     document.getElementById('btn-cancel').classList.add('hidden');
 };
 
-
 window.deleteProduct = async (id) => {
-    console.log('Deletando produto com ID:', id);
-    
-    // Validar se o produto existe
     const product = products.find(p => p.id.toString() === id.toString());
     if (!product) {
         showToast('Produto não encontrado!', 'error');
@@ -623,7 +630,6 @@ window.deleteProduct = async (id) => {
     }
 };
 
-// Neighborhood Admin
 function renderAdminNeighborhoods() {
     const list = document.getElementById('admin-neighborhoods-list');
     list.innerHTML = '';
