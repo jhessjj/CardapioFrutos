@@ -1,5 +1,5 @@
 
-const API_URL = "https://script.google.com/macros/s/AKfycbz21F06gFUzLJgykcfFN4z5D1P_KQQGhAtExdZAe0JBgBYwB1lDlsdZc6jiaUR1NXaWkQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxby3fp0gCOoC5jjKzlFTVncfdMSxRxp04hWPT07oVWR5maZu1Ot_YW5sQQpIB-yx1Vqg/exec";
 
 const WHATSAPP_NUMBER = "558994127037";
 const ADMIN_PASSWORD = "Frutosp1725";
