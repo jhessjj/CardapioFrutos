@@ -1,5 +1,5 @@
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwDgk32hAHRUCfC7r0OsReAh9nwaOJv8K3hg6uPyIgcUihSamjRNqp4jfLxkqFUnzdO/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw-nbvasKXo_zqUbV-eeXYlawZbXIhKre8IGTZ4rKBAi1s9Cwa6QiEPO74xcZH4PZhjAA/exec";
 
 const WHATSAPP_NUMBER = "558994127037";
 const ADMIN_PASSWORD = "Frutosp1725";
@@ -22,6 +22,7 @@ const adminProductList = document.getElementById('admin-product-list');
 const optionsModal = document.getElementById('options-modal');
 const cartDrawer = document.getElementById('cart-drawer');
 
+// FUNÇÕES DE COMUNICAÇÃO COM O SHEETS
 async function fetchData(action) {
     try {
         showToast('Carregando dados...', 'info');
@@ -55,7 +56,7 @@ async function initializeApp() {
         fetchData('getNeighborhoods')
     ]);
 
-    // Converter string de estoque (JSON) para objeto se necessário
+    // Converter string de estoque (JSON) para objeto
     products = productsData.map(p => {
         if (typeof p.stock === 'string') {
             try { p.stock = JSON.parse(p.stock); } catch(e) { p.stock = {}; }
@@ -132,7 +133,7 @@ document.getElementById('tab-neighborhoods').onclick = () => {
     document.getElementById('tab-products').classList.remove('active');
 };
 
-// RENDERIZAÇÃO DO CARDÁPIO
+
 function renderMenu(filter = '') {
     categoriesContainer.innerHTML = '';
     if (!products || products.length === 0) {
@@ -158,24 +159,22 @@ function renderMenu(filter = '') {
         grid.className = 'product-grid';
         
         catProducts.forEach((prod, prodIndex) => {
-            // Lógica de estoque por sabor: se todos os sabores estiverem zerados, produto esgotado
-            const hasStock = prod.stock && Object.values(prod.stock).some(qty => qty > 0);
-            const isOutOfStock = !hasStock;
-
             const card = document.createElement('div');
-            card.className = `product-card ${isOutOfStock ? 'out-of-stock' : ''}`;
+            card.className = 'product-card';
             card.style.animationDelay = `${prodIndex * 0.05}s`;
             
+            const totalStock = prod.stock ? Object.values(prod.stock).reduce((a, b) => a + b, 0) : 1;
+            const isOutOfStock = totalStock <= 0;
+
             card.innerHTML = `
-                <img src="${prod.img || 'https://via.placeholder.com/250x200'}" class="product-img" alt="${prod.name}" style="${isOutOfStock ? 'filter: grayscale(1); opacity: 0.6;' : ''}">
+                <img src="${prod.img || 'https://via.placeholder.com/250x200'}" class="product-img" alt="${prod.name}">
                 <div class="product-info">
                     <h3>${prod.name}</h3>
                     <p>${prod.desc}</p>
                     <div class="product-price">R$ ${prod.price.toFixed(2)}</div>
-                    ${isOutOfStock ? 
-                        `<button class="btn-add-cart disabled" disabled style="background: #ccc; cursor: not-allowed;">❌ Esgotado</button>` : 
-                        `<button class="btn-add-cart" onclick="openOptions('${prod.id}')">🛒 Escolher</button>`
-                    }
+                    <button class="btn-add-cart" ${isOutOfStock ? 'disabled' : ''} onclick="openOptions('${prod.id}')">
+                        ${isOutOfStock ? '❌ Esgotado' : '🛒 Escolher'}
+                    </button>
                 </div>
             `;
             grid.appendChild(card);
@@ -207,6 +206,7 @@ document.getElementById('neighborhood-select').onchange = (e) => {
     updateCart();
 };
 
+
 window.openOptions = (productId) => {
     currentProductForOptions = products.find(p => p.id.toString() === productId.toString());
     if (!currentProductForOptions) return;
@@ -221,7 +221,6 @@ window.openOptions = (productId) => {
     const container = document.getElementById('options-container');
     container.innerHTML = '';
 
-    // Sabores com verificação de estoque individual
     if (currentProductForOptions.options && currentProductForOptions.options.length > 0) {
         const group = document.createElement('div');
         group.className = 'option-group';
@@ -234,29 +233,24 @@ window.openOptions = (productId) => {
         currentProductForOptions.options.forEach(opt => {
             const stockQty = (currentProductForOptions.stock && currentProductForOptions.stock[opt] !== undefined) 
                 ? currentProductForOptions.stock[opt] 
-                : 0;
+                : 10;
             
             const item = document.createElement('div');
             item.className = `option-item ${stockQty <= 0 ? 'disabled' : ''}`;
-            item.innerHTML = `${opt} ${stockQty <= 0 ? '(Esgotado)' : ''}`;
+            item.innerHTML = `${opt}`;
             
-            if (stockQty > 0) {
-                item.onclick = () => {
-                    item.classList.toggle('selected');
-                    if (item.classList.contains('selected')) selectedOptions.push(opt);
-                    else selectedOptions = selectedOptions.filter(o => o !== opt);
-                };
-            } else {
-                item.style.opacity = '0.5';
-                item.style.cursor = 'not-allowed';
-            }
+            item.onclick = () => {
+                if (stockQty <= 0) return;
+                item.classList.toggle('selected');
+                if (item.classList.contains('selected')) selectedOptions.push(opt);
+                else selectedOptions = selectedOptions.filter(o => o !== opt);
+            };
             list.appendChild(item);
         });
         group.appendChild(list);
         container.appendChild(group);
     }
 
-    // Complementos
     if (currentProductForOptions.extras && currentProductForOptions.extras.length > 0) {
         const group = document.createElement('div');
         group.className = 'option-group';
@@ -300,6 +294,7 @@ document.getElementById('btn-confirm-options').onclick = () => {
     }
     
     selectedQuantity = parseInt(document.getElementById('qty-input').value) || 1;
+    
     
     cart.push({
         ...currentProductForOptions,
@@ -374,16 +369,14 @@ document.getElementById('btn-finish-order').onclick = async () => {
         return; 
     }
     
-    showToast('Atualizando estoque...', 'info');
     
-    // Preparar dados para baixar estoque por sabor
     const stockUpdates = [];
     cart.forEach(item => {
         item.chosenOptions.forEach(flavor => {
             stockUpdates.push({
                 productId: item.id,
                 flavor: flavor,
-                qty: item.qty // Se o item tem 2 unidades, baixa 2 de cada sabor escolhido
+                qty: item.qty
             });
         });
     });
@@ -392,7 +385,7 @@ document.getElementById('btn-finish-order').onclick = async () => {
         await postData({ action: 'updateStockByFlavor', updates: stockUpdates });
     } catch (e) { console.error(e); }
 
-    // WhatsApp Message
+    // WHATSAPP MESSAGE
     let msg = `*Novo Pedido*\n\n*Cliente:* ${name}\n*Endereço:* ${address}\n*Bairro:* ${selectedNeighborhood}\n\n`;
     cart.forEach(item => {
         msg += `*${item.qty}x ${item.name}* - R$ ${item.totalPrice.toFixed(2)}\n`;
@@ -414,7 +407,7 @@ document.getElementById('btn-finish-order').onclick = async () => {
     await initializeApp();
 };
 
-// ADMIN FUNCTIONS
+
 function renderAdminProducts() {
     adminProductList.innerHTML = '';
     products.forEach(p => {
@@ -432,20 +425,28 @@ function renderAdminProducts() {
                         </div>
                     </div>`;
             });
+        } else {
+            stockHTML = '<p style="color:#999; font-size:12px; margin:0; font-style:italic; text-align:center; padding:16px;">Sem sabores definidos</p>';
         }
 
         const card = document.createElement('div');
         card.className = 'product-admin-card';
         card.innerHTML = `
             <div class="product-card-header">
-                <h4>${p.name}</h4>
-                <div>
-                    <button onclick="editProduct('${p.id}')"><i class="fas fa-edit"></i></button>
-                    <button onclick="deleteProduct('${p.id}')"><i class="fas fa-trash"></i></button>
+                <div class="product-info-admin">
+                    <h4>${p.name}</h4>
+                    <div class="product-badges">
+                        <span class="category-badge">${p.category}</span>
+                        <span class="price-badge">R$ ${p.price.toFixed(2)}</span>
+                    </div>
+                </div>
+                <div class="product-actions">
+                    <button class="btn-edit" onclick="editProduct('${p.id}')" title="Editar"><i class="fas fa-edit"></i></button>
+                    <button class="btn-delete-product" onclick="deleteProduct('${p.id}')" title="Deletar"><i class="fas fa-trash"></i></button>
                 </div>
             </div>
-            <div style="margin-top:10px;">
-                <h5>Estoque por Sabor:</h5>
+            <div class="product-card-stock">
+                <h5>📊 Estoque por Sabor</h5>
                 ${stockHTML}
             </div>
         `;
@@ -469,13 +470,16 @@ document.getElementById('product-form').onsubmit = async (e) => {
     const id = document.getElementById('edit-index').value;
     const options = document.getElementById('prod-options').value.split(',').map(s => s.trim()).filter(s => s);
     
-    // Manter estoque existente para sabores que já existiam
     let existingStock = {};
     if (id) {
         const p = products.find(prod => prod.id.toString() === id.toString());
         if (p && p.stock) existingStock = p.stock;
     }
     
+    options.forEach(opt => {
+        if (existingStock[opt] === undefined) existingStock[opt] = 0;
+    });
+
     const productData = {
         id: id || null,
         name: document.getElementById('prod-name').value,
@@ -508,20 +512,11 @@ window.editProduct = (id) => {
     document.getElementById('tab-products').click();
 };
 
-
-document.getElementById('btn-cancel').onclick = () => {
-    document.getElementById('product-form').reset();
-    document.getElementById('edit-index').value = "";
-    document.getElementById('btn-cancel').classList.add('hidden');
-};
-
-
-// --- BAIRROS ---
+// BAIRROS (SHEETS)
 function renderAdminNeighborhoods() {
     const list = document.getElementById('admin-neighborhoods-list');
+    if (!list) return;
     list.innerHTML = '';
-    if (!neighborhoods) return;
-    
     neighborhoods.forEach(n => {
         const card = document.createElement('div');
         card.className = 'neighborhood-card';
@@ -531,8 +526,8 @@ function renderAdminNeighborhoods() {
                 <p>Taxa: R$ ${n.fee.toFixed(2)}</p>
             </div>
             <div class="neighborhood-actions">
-                <button class="btn-edit-neighborhood" onclick="editNeighborhood('${n.id}')" title="Editar"><i class="fas fa-edit"></i></button>
-                <button class="btn-delete-neighborhood" onclick="deleteNeighborhood('${n.id}')" title="Deletar"><i class="fas fa-trash"></i></button>
+                <button onclick="editNeighborhood('${n.id}')"><i class="fas fa-edit"></i></button>
+                <button onclick="deleteNeighborhood('${n.id}')"><i class="fas fa-trash"></i></button>
             </div>
         `;
         list.appendChild(card);
@@ -542,22 +537,15 @@ function renderAdminNeighborhoods() {
 document.getElementById('neighborhood-form').onsubmit = async (e) => {
     e.preventDefault();
     const id = document.getElementById('edit-neighborhood-index').value;
-    
     const neighborhoodData = {
         id: id || null,
         name: document.getElementById('neighborhood-name').value,
         fee: parseFloat(document.getElementById('neighborhood-fee-input').value)
     };
-
-    showToast('Salvando bairro...', 'info');
     await postData({ action: 'saveNeighborhood', data: neighborhoodData });
-
-    showToast('Bairro salvo! Atualizando...', 'success');
     await initializeApp();
-
     document.getElementById('neighborhood-form').reset();
     document.getElementById('edit-neighborhood-index').value = "";
-    document.getElementById('btn-cancel-neighborhood').classList.add('hidden');
 };
 
 window.editNeighborhood = (id) => {
@@ -566,97 +554,18 @@ window.editNeighborhood = (id) => {
     document.getElementById('neighborhood-name').value = n.name;
     document.getElementById('neighborhood-fee-input').value = n.fee;
     document.getElementById('edit-neighborhood-index').value = n.id;
-    document.getElementById('btn-cancel-neighborhood').classList.remove('hidden');
 };
 
 window.deleteNeighborhood = async (id) => {
-    if (confirm('Tem certeza que deseja remover este bairro?')) {
-        showToast('Removendo bairro...', 'info');
+    if (confirm('Deseja remover este bairro?')) {
         await postData({ action: 'deleteNeighborhood', id: id });
-
-        showToast('Bairro removido! Atualizando...', 'success');
         await initializeApp();
     }
 };
 
-document.getElementById('btn-cancel-neighborhood').onclick = () => {
-    document.getElementById('neighborhood-form').reset();
-    document.getElementById('edit-neighborhood-index').value = "";
-    document.getElementById('btn-cancel-neighborhood').classList.add('hidden');
-};
-
-
-//bairros dely
-
-function renderAdminNeighborhoods() {
-    const list = document.getElementById('admin-neighborhoods-list');
-    list.innerHTML = '';
-    
-    neighborhoods.forEach((neighborhood, idx) => {
-        const card = document.createElement('div');
-        card.className = 'neighborhood-card';
-        card.innerHTML = `
-            <div class="neighborhood-info">
-                <h4>${neighborhood.name}</h4>
-                <p>Taxa: R$ ${neighborhood.fee.toFixed(2)}</p>
-            </div>
-            <div class="neighborhood-actions">
-                <button class="btn-edit-neighborhood" onclick="editNeighborhood(${idx})" title="Editar">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn-delete-neighborhood" onclick="deleteNeighborhood(${idx})" title="Deletar">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        `;
-        list.appendChild(card);
-    });
-}
-
-document.getElementById('neighborhood-form').onsubmit = (e) => {
-    e.preventDefault();
-    const idx = document.getElementById('edit-neighborhood-index').value;
-    
-    const newNeighborhood = {
-        name: document.getElementById('neighborhood-name').value,
-        fee: parseFloat(document.getElementById('neighborhood-fee-input').value)
-    };
-
-    if (idx !== "") neighborhoods[idx] = newNeighborhood;
-    else neighborhoods.push(newNeighborhood);
-
-    localStorage.setItem('neighborhoods', JSON.stringify(neighborhoods));
-    renderAdminNeighborhoods();
-    renderNeighborhoodSelector();
-    document.getElementById('neighborhood-form').reset();
-    document.getElementById('edit-neighborhood-index').value = "";
-    document.getElementById('btn-cancel-neighborhood').classList.add('hidden');
-};
-
-window.editNeighborhood = (idx) => {
-    const n = neighborhoods[idx];
-    document.getElementById('neighborhood-name').value = n.name;
-    document.getElementById('neighborhood-fee-input').value = n.fee;
-    document.getElementById('edit-neighborhood-index').value = idx;
-    document.getElementById('btn-cancel-neighborhood').classList.remove('hidden');
-};
-
-window.deleteNeighborhood = (idx) => {
-    if (confirm('Tem certeza que deseja remover este bairro?')) {
-        neighborhoods.splice(idx, 1);
-        localStorage.setItem('neighborhoods', JSON.stringify(neighborhoods));
-        renderAdminNeighborhoods();
-        renderNeighborhoodSelector();
-        showToast('Bairro removido com sucesso!', 'success');
+window.deleteProduct = async (id) => {
+    if (confirm('Deseja remover este produto?')) {
+        await postData({ action: 'deleteProduct', id: id });
+        await initializeApp();
     }
 };
-
-document.getElementById('btn-cancel-neighborhood').onclick = () => {
-    document.getElementById('neighborhood-form').reset();
-    document.getElementById('edit-neighborhood-index').value = "";
-    document.getElementById('btn-cancel-neighborhood').classList.add('hidden');
-};
-
-// Inicializar
-renderMenu();
-renderNeighborhoodSelector();
