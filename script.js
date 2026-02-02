@@ -1,11 +1,10 @@
 
-const API_URL = "https://script.google.com/macros/s/AKfycbxby3fp0gCOoC5jjKzlFTVncfdMSxRxp04hWPT07oVWR5maZu1Ot_YW5sQQpIB-yx1Vqg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwDgk32hAHRUCfC7r0OsReAh9nwaOJv8K3hg6uPyIgcUihSamjRNqp4jfLxkqFUnzdO/exec";
 
 const WHATSAPP_NUMBER = "558994127037";
 const ADMIN_PASSWORD = "Frutosp1725";
 const DISCOUNT_THRESHOLD = 50.00;
 const DISCOUNT_AMOUNT = 6.00;
-
 
 let products = [];
 let neighborhoods = [];
@@ -16,15 +15,12 @@ let selectedExtras = [];
 let selectedQuantity = 1;
 let selectedNeighborhood = '';
 
-
 const menuSection = document.getElementById('menu-section');
 const adminSection = document.getElementById('admin-section');
 const categoriesContainer = document.getElementById('categories-container');
 const adminProductList = document.getElementById('admin-product-list');
 const optionsModal = document.getElementById('options-modal');
 const cartDrawer = document.getElementById('cart-drawer');
-
-
 
 async function fetchData(action) {
     try {
@@ -42,19 +38,16 @@ async function fetchData(action) {
 
 async function postData(payload) {
     try {
-        await fetch(API_URL, {
+        const response = await fetch(API_URL, {
             method: 'POST',
-            mode: 'no-cors', 
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        return { status: 'success', message: 'Operação enviada.' };
+        return await response.json();
     } catch (error) {
-        showToast(`Erro ao enviar dados: ${error.message}`, 'error');
+        console.error('Erro ao enviar dados:', error);
         return { status: 'error', message: error.message };
     }
 }
-
 
 async function initializeApp() {
     const [productsData, neighborhoodsData] = await Promise.all([
@@ -62,7 +55,13 @@ async function initializeApp() {
         fetchData('getNeighborhoods')
     ]);
 
-    products = productsData;
+    // Converter string de estoque (JSON) para objeto se necessário
+    products = productsData.map(p => {
+        if (typeof p.stock === 'string') {
+            try { p.stock = JSON.parse(p.stock); } catch(e) { p.stock = {}; }
+        }
+        return p;
+    });
     neighborhoods = neighborhoodsData;
 
     renderMenu();
@@ -74,7 +73,6 @@ async function initializeApp() {
 }
 
 document.addEventListener('DOMContentLoaded', initializeApp);
-
 
 function showToast(message, type = 'info') {
     document.querySelectorAll('.toast').forEach(t => t.remove());
@@ -138,7 +136,7 @@ document.getElementById('tab-neighborhoods').onclick = () => {
 function renderMenu(filter = '') {
     categoriesContainer.innerHTML = '';
     if (!products || products.length === 0) {
-        categoriesContainer.innerHTML = '<p style="text-align:center; padding: 20px;">Nenhum produto encontrado. Adicione itens no painel de administrador.</p>';
+        categoriesContainer.innerHTML = '<p style="text-align:center; padding: 20px;">Nenhum produto encontrado.</p>';
         return;
     }
     const categories = [...new Set(products.map(p => p.category))];
@@ -160,19 +158,24 @@ function renderMenu(filter = '') {
         grid.className = 'product-grid';
         
         catProducts.forEach((prod, prodIndex) => {
+            // Lógica de estoque por sabor: se todos os sabores estiverem zerados, produto esgotado
+            const hasStock = prod.stock && Object.values(prod.stock).some(qty => qty > 0);
+            const isOutOfStock = !hasStock;
+
             const card = document.createElement('div');
-            card.className = 'product-card';
+            card.className = `product-card ${isOutOfStock ? 'out-of-stock' : ''}`;
             card.style.animationDelay = `${prodIndex * 0.05}s`;
             
             card.innerHTML = `
-                <img src="${prod.img || 'https://via.placeholder.com/250x200'}" class="product-img" alt="${prod.name}">
+                <img src="${prod.img || 'https://via.placeholder.com/250x200'}" class="product-img" alt="${prod.name}" style="${isOutOfStock ? 'filter: grayscale(1); opacity: 0.6;' : ''}">
                 <div class="product-info">
                     <h3>${prod.name}</h3>
                     <p>${prod.desc}</p>
-                    <div class="product-price">R$ ${prod.price.toFixed(2 )}</div>
-                    <button class="btn-add-cart" onclick="openOptions('${prod.id}')">
-                        🛒 Escolher
-                    </button>
+                    <div class="product-price">R$ ${prod.price.toFixed(2)}</div>
+                    ${isOutOfStock ? 
+                        `<button class="btn-add-cart disabled" disabled style="background: #ccc; cursor: not-allowed;">❌ Esgotado</button>` : 
+                        `<button class="btn-add-cart" onclick="openOptions('${prod.id}')">🛒 Escolher</button>`
+                    }
                 </div>
             `;
             grid.appendChild(card);
@@ -183,11 +186,10 @@ function renderMenu(filter = '') {
     });
 }
 
-// RENDERIZAÇÃO DO SELETOR DE BAIRROS
 function renderNeighborhoodSelector() {
     const select = document.getElementById('neighborhood-select');
+    if (!select) return;
     select.innerHTML = '<option value="">-- Escolha um bairro --</option>';
-    
     if(neighborhoods) {
         neighborhoods.forEach(neighborhood => {
             const option = document.createElement('option');
@@ -198,17 +200,10 @@ function renderNeighborhoodSelector() {
     }
 }
 
-// EVENTOS DE UI (MODAL, CARRINHO, ETC)
 document.getElementById('neighborhood-select').onchange = (e) => {
     selectedNeighborhood = e.target.value;
     const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
-    
-    if (neighborhood) {
-        document.getElementById('neighborhood-fee').innerText = `Taxa: R$ ${neighborhood.fee.toFixed(2)}`;
-    } else {
-        document.getElementById('neighborhood-fee').innerText = `Taxa: -`;
-    }
-    
+    document.getElementById('neighborhood-fee').innerText = neighborhood ? `Taxa: R$ ${neighborhood.fee.toFixed(2)}` : `Taxa: -`;
     updateCart();
 };
 
@@ -226,6 +221,7 @@ window.openOptions = (productId) => {
     const container = document.getElementById('options-container');
     container.innerHTML = '';
 
+    // Sabores com verificação de estoque individual
     if (currentProductForOptions.options && currentProductForOptions.options.length > 0) {
         const group = document.createElement('div');
         group.className = 'option-group';
@@ -234,21 +230,33 @@ window.openOptions = (productId) => {
         group.appendChild(title);
         const list = document.createElement('div');
         list.className = 'option-list';
+        
         currentProductForOptions.options.forEach(opt => {
+            const stockQty = (currentProductForOptions.stock && currentProductForOptions.stock[opt] !== undefined) 
+                ? currentProductForOptions.stock[opt] 
+                : 0;
+            
             const item = document.createElement('div');
-            item.className = 'option-item';
-            item.innerHTML = `${opt}`;
-            item.onclick = () => {
-                item.classList.toggle('selected');
-                if (item.classList.contains('selected')) selectedOptions.push(opt);
-                else selectedOptions = selectedOptions.filter(o => o !== opt);
-            };
+            item.className = `option-item ${stockQty <= 0 ? 'disabled' : ''}`;
+            item.innerHTML = `${opt} ${stockQty <= 0 ? '(Esgotado)' : ''}`;
+            
+            if (stockQty > 0) {
+                item.onclick = () => {
+                    item.classList.toggle('selected');
+                    if (item.classList.contains('selected')) selectedOptions.push(opt);
+                    else selectedOptions = selectedOptions.filter(o => o !== opt);
+                };
+            } else {
+                item.style.opacity = '0.5';
+                item.style.cursor = 'not-allowed';
+            }
             list.appendChild(item);
         });
         group.appendChild(list);
         container.appendChild(group);
     }
 
+    // Complementos
     if (currentProductForOptions.extras && currentProductForOptions.extras.length > 0) {
         const group = document.createElement('div');
         group.className = 'option-group';
@@ -285,52 +293,40 @@ document.getElementById('btn-qty-plus').onclick = () => {
     if (parseInt(input.value) < 99) input.value = parseInt(input.value) + 1;
 };
 
-document.getElementById('qty-input').onchange = () => {
-    let val = parseInt(document.getElementById('qty-input').value);
-    if (isNaN(val) || val < 1) val = 1;
-    if (val > 99) val = 99;
-    document.getElementById('qty-input').value = val;
-};
-
-document.getElementById('btn-close-options').onclick = () => optionsModal.classList.add('hidden');
-document.getElementById('btn-close-options-alt').onclick = () => optionsModal.classList.add('hidden');
-
 document.getElementById('btn-confirm-options').onclick = () => {
     if (selectedOptions.length === 0 && currentProductForOptions.options && currentProductForOptions.options.length > 0) {
         showToast('Por favor, escolha pelo menos um sabor.', 'warning');
         return;
     }
+    
     selectedQuantity = parseInt(document.getElementById('qty-input').value) || 1;
-    for (let i = 0; i < selectedQuantity; i++) {
-        cart.push({
-            ...currentProductForOptions,
-            chosenOptions: [...selectedOptions],
-            chosenExtras: [...selectedExtras],
-            qty: 1
-        });
-    }
+    
+    cart.push({
+        ...currentProductForOptions,
+        chosenOptions: [...selectedOptions],
+        chosenExtras: [...selectedExtras],
+        qty: selectedQuantity,
+        totalPrice: currentProductForOptions.price * selectedQuantity
+    });
+    
     updateCart();
     optionsModal.classList.add('hidden');
     cartDrawer.classList.add('open');
 };
 
-function getDeliveryFee() {
-    const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
-    return neighborhood ? neighborhood.fee : 0;
-}
-
 function updateCart() {
     const list = document.getElementById('cart-items');
     list.innerHTML = '';
     let subtotal = 0;
+    
     cart.forEach((item, idx) => {
-        subtotal += item.price;
+        subtotal += item.totalPrice;
         const div = document.createElement('div');
         div.className = 'cart-item';
         div.innerHTML = `
             <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                <strong>${item.name}</strong>
-                <span style="color: #ff6b6b; font-weight: 700;">R$ ${item.price.toFixed(2)}</span>
+                <strong>${item.qty}x ${item.name}</strong>
+                <span style="color: #ff6b6b; font-weight: 700;">R$ ${item.totalPrice.toFixed(2)}</span>
             </div>
             <div class="cart-item-meta">
                 ${item.chosenOptions.length ? '🍨 ' + item.chosenOptions.join(', ') : ''}
@@ -342,11 +338,15 @@ function updateCart() {
         `;
         list.appendChild(div);
     });
-    const deliveryFee = getDeliveryFee();
+    
+    const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
+    const deliveryFee = neighborhood ? neighborhood.fee : 0;
     const discount = subtotal >= DISCOUNT_THRESHOLD ? DISCOUNT_AMOUNT : 0;
     const total = subtotal + deliveryFee - discount;
+    
     document.getElementById('subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
     document.getElementById('delivery-fee').innerText = `R$ ${deliveryFee.toFixed(2)}`;
+    
     const discountRow = document.getElementById('discount-row');
     if (discount > 0) {
         discountRow.style.display = 'flex';
@@ -354,8 +354,9 @@ function updateCart() {
     } else {
         discountRow.style.display = 'none';
     }
+    
     document.getElementById('cart-total').innerText = `R$ ${total.toFixed(2)}`;
-    document.getElementById('cart-count').innerText = cart.length;
+    document.getElementById('cart-count').innerText = cart.reduce((acc, item) => acc + item.qty, 0);
 }
 
 window.removeFromCart = (idx) => {
@@ -363,77 +364,117 @@ window.removeFromCart = (idx) => {
     updateCart();
 };
 
-document.getElementById('open-cart').onclick = () => cartDrawer.classList.add('open');
-document.getElementById('close-cart').onclick = () => cartDrawer.classList.remove('open');
-
-document.getElementById('btn-finish-order').onclick = () => {
+document.getElementById('btn-finish-order').onclick = async () => {
     if (cart.length === 0) { showToast('Carrinho vazio!', 'error'); return; }
-    const name = document.getElementById('client-name').value || 'Cliente';
-    const address = document.getElementById('client-address').value || 'Não informado';
-    if (!document.getElementById('client-name').value) { showToast('Por favor, digite seu nome!', 'warning'); return; }
-    if (!document.getElementById('client-address').value) { showToast('Por favor, digite seu endereço!', 'warning'); return; }
-    if (!selectedNeighborhood) { showToast('Por favor, selecione um bairro!', 'warning'); return; }
+    const name = document.getElementById('client-name').value;
+    const address = document.getElementById('client-address').value;
     
-    const subtotal = cart.reduce((sum, item) => sum + item.price, 0);
-    const deliveryFee = getDeliveryFee();
-    const discount = subtotal >= DISCOUNT_THRESHOLD ? DISCOUNT_AMOUNT : 0;
-    const total = subtotal + deliveryFee - discount;
+    if (!name || !address || !selectedNeighborhood) { 
+        showToast('Preencha todos os dados de entrega!', 'warning'); 
+        return; 
+    }
     
-    let msg = `*Novo Pedido - WhatsApp*\n\n *Cliente:* ${name}\n *Endereço:* ${address}\n *Bairro:* ${selectedNeighborhood}\n*Data:* ${new Date().toLocaleDateString('pt-BR')}\n*Hora:* ${new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}\n\n${'═'.repeat(40)}\n\n`;
-    cart.forEach((item, i) => {
-        msg += `*${i + 1}. ${item.name}* - R$ ${item.price.toFixed(2)}\n`;
-        if (item.chosenOptions.length) msg += `    Sabores: ${item.chosenOptions.join(', ')}\n`;
-        if (item.chosenExtras.length) msg += `    Extras: ${item.chosenExtras.join(', ')}\n`;
+    showToast('Atualizando estoque...', 'info');
+    
+    // Preparar dados para baixar estoque por sabor
+    const stockUpdates = [];
+    cart.forEach(item => {
+        item.chosenOptions.forEach(flavor => {
+            stockUpdates.push({
+                productId: item.id,
+                flavor: flavor,
+                qty: item.qty // Se o item tem 2 unidades, baixa 2 de cada sabor escolhido
+            });
+        });
+    });
+
+    try {
+        await postData({ action: 'updateStockByFlavor', updates: stockUpdates });
+    } catch (e) { console.error(e); }
+
+    // WhatsApp Message
+    let msg = `*Novo Pedido*\n\n*Cliente:* ${name}\n*Endereço:* ${address}\n*Bairro:* ${selectedNeighborhood}\n\n`;
+    cart.forEach(item => {
+        msg += `*${item.qty}x ${item.name}* - R$ ${item.totalPrice.toFixed(2)}\n`;
+        if (item.chosenOptions.length) msg += ` Sabores: ${item.chosenOptions.join(', ')}\n`;
         msg += `\n`;
     });
-    msg += `${'═'.repeat(40)}\n *Resumo do Pedido:*\nSubtotal: R$ ${subtotal.toFixed(2)}\nTaxa de Entrega (${selectedNeighborhood}): R$ ${deliveryFee.toFixed(2)}\n`;
-    if (discount > 0) msg += `Desconto na Entrega: -R$ ${discount.toFixed(2)} \n`;
-    msg += `\n*TOTAL: R$ ${total.toFixed(2)}*`;
     
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg )}`, '_blank');
-    showToast('✅ Pedido enviado com sucesso!', 'success');
+    const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+    const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
+    const deliveryFee = neighborhood ? neighborhood.fee : 0;
+    const discount = subtotal >= DISCOUNT_THRESHOLD ? DISCOUNT_AMOUNT : 0;
+    msg += `*Total: R$ ${(subtotal + deliveryFee - discount).toFixed(2)}*`;
+
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
     
     cart = [];
     updateCart();
-    document.getElementById('client-name').value = '';
-    document.getElementById('client-address').value = '';
-    document.getElementById('neighborhood-select').value = '';
-    selectedNeighborhood = '';
-    document.getElementById('neighborhood-fee').innerText = 'Taxa: -';
     cartDrawer.classList.remove('open');
+    await initializeApp();
 };
 
-document.getElementById('search-input').oninput = (e) => renderMenu(e.target.value);
-
-
+// ADMIN FUNCTIONS
 function renderAdminProducts() {
     adminProductList.innerHTML = '';
-    if (!products) return;
     products.forEach(p => {
-        const productCard = document.createElement('div');
-        productCard.className = 'product-admin-card';
-        productCard.innerHTML = `
+        let stockHTML = '';
+        if (p.options && p.options.length > 0) {
+            p.options.forEach(opt => {
+                const qty = (p.stock && p.stock[opt] !== undefined) ? p.stock[opt] : 0;
+                stockHTML += `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; background:#f9f9f9; padding:5px; border-radius:4px;">
+                        <span>${opt}</span>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <button onclick="adjustStock('${p.id}', '${opt}', -1)" style="padding:2px 8px;">-</button>
+                            <strong style="min-width:20px; text-align:center;">${qty}</strong>
+                            <button onclick="adjustStock('${p.id}', '${opt}', 1)" style="padding:2px 8px;">+</button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        const card = document.createElement('div');
+        card.className = 'product-admin-card';
+        card.innerHTML = `
             <div class="product-card-header">
-                <div class="product-info-admin">
-                    <h4>${p.name}</h4>
-                    <div class="product-badges">
-                        <span class="category-badge">${p.category}</span>
-                        <span class="price-badge">R$ ${p.price.toFixed(2)}</span>
-                    </div>
-                </div>
-                <div class="product-actions">
-                    <button class="btn-edit" onclick="editProduct('${p.id}')" title="Editar"><i class="fas fa-edit"></i></button>
-                    <button class="btn-delete-product" onclick="deleteProduct('${p.id}')" title="Deletar"><i class="fas fa-trash"></i></button>
+                <h4>${p.name}</h4>
+                <div>
+                    <button onclick="editProduct('${p.id}')"><i class="fas fa-edit"></i></button>
+                    <button onclick="deleteProduct('${p.id}')"><i class="fas fa-trash"></i></button>
                 </div>
             </div>
+            <div style="margin-top:10px;">
+                <h5>Estoque por Sabor:</h5>
+                ${stockHTML}
+            </div>
         `;
-        adminProductList.appendChild(productCard);
+        adminProductList.appendChild(card);
     });
 }
+
+window.adjustStock = async (productId, flavor, amount) => {
+    const p = products.find(prod => prod.id.toString() === productId.toString());
+    if (!p) return;
+    if (!p.stock) p.stock = {};
+    p.stock[flavor] = Math.max(0, (p.stock[flavor] || 0) + amount);
+    
+    showToast('Salvando estoque...', 'info');
+    await postData({ action: 'saveProduct', data: { ...p, stock: JSON.stringify(p.stock) } });
+    await initializeApp();
+};
 
 document.getElementById('product-form').onsubmit = async (e) => {
     e.preventDefault();
     const id = document.getElementById('edit-index').value;
+    const options = document.getElementById('prod-options').value.split(',').map(s => s.trim()).filter(s => s);
+    
+    // Manter estoque existente para sabores que já existiam
+    let existingStock = {};
+    if (id) {
+        const p = products.find(prod => prod.id.toString() === id.toString());
+        if (p && p.stock) existingStock = p.stock;
+    }
     
     const productData = {
         id: id || null,
@@ -442,29 +483,15 @@ document.getElementById('product-form').onsubmit = async (e) => {
         price: parseFloat(document.getElementById('prod-price').value),
         img: document.getElementById('prod-img').value,
         desc: document.getElementById('prod-desc').value,
-        options: document.getElementById('prod-options').value.split(',').map(s => s.trim()).filter(s => s),
+        options: options,
         extras: document.getElementById('prod-extras').value.split(',').map(s => s.trim()).filter(s => s),
+        stock: JSON.stringify(existingStock)
     };
 
-    showToast('Salvando produto...', 'info');
     await postData({ action: 'saveProduct', data: productData });
-    
-    showToast('Produto salvo! Atualizando...', 'success');
-    await initializeApp(); 
-
+    await initializeApp();
     document.getElementById('product-form').reset();
     document.getElementById('edit-index').value = "";
-    document.getElementById('btn-cancel').classList.add('hidden');
-};
-
-window.deleteProduct = async (id) => {
-    if (confirm('Tem certeza que deseja remover este produto?')) {
-        showToast('Removendo produto...', 'info');
-        await postData({ action: 'deleteProduct', id: id });
-        
-        showToast('Produto removido! Atualizando...', 'success');
-        await initializeApp();
-    }
 };
 
 window.editProduct = (id) => {
@@ -475,13 +502,12 @@ window.editProduct = (id) => {
     document.getElementById('prod-price').value = p.price;
     document.getElementById('prod-img').value = p.img;
     document.getElementById('prod-desc').value = p.desc;
-    document.getElementById('prod-options').value = p.options ? p.options.join(', ') : '';
-    document.getElementById('prod-extras').value = p.extras ? p.extras.join(', ') : '';
+    document.getElementById('prod-options').value = p.options.join(', ');
+    document.getElementById('prod-extras').value = p.extras.join(', ');
     document.getElementById('edit-index').value = p.id;
-    document.getElementById('btn-cancel').classList.remove('hidden');
     document.getElementById('tab-products').click();
-    window.scrollTo(0, 0);
 };
+
 
 document.getElementById('btn-cancel').onclick = () => {
     document.getElementById('product-form').reset();
