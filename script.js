@@ -401,32 +401,21 @@ document.getElementById('open-cart').onclick = () => cartDrawer.classList.add('o
 document.getElementById('close-cart').onclick = () => cartDrawer.classList.remove('open');
 
 document.getElementById('btn-finish-order').onclick = async () => {
-    if (cart.length === 0) { showToast('Carrinho vazio!', 'error'); return; }
-    const name = document.getElementById('client-name').value;
-    const address = document.getElementById('client-address').value;
-    
-    if (!name || !address || !selectedNeighborhood) { 
-        showToast('Preencha nome, endereço e bairro!', 'warning'); 
+    // 1. Validações Iniciais
+    if (cart.length === 0) { 
+        showToast('Seu carrinho está vazio!', 'error'); 
         return; 
     }
     
-    const stockUpdates = [];
-    cart.forEach(item => {
-        if (item.chosenOptions.length > 0) {
-            const chargePerFlavor = isChargePerFlavor(item.category);
-            item.chosenOptions.forEach(flavor => {
-                const qtyToDiscount = chargePerFlavor ? 1 : (item.qty / item.chosenOptions.length);
-                stockUpdates.push({ productId: item.id, flavor: flavor, qty: qtyToDiscount });
-            });
-        }
-    });
+    const name = document.getElementById('client-name').value.trim();
+    const address = document.getElementById('client-address').value.trim();
+    
+    if (!name || !address || !selectedNeighborhood) { 
+        showToast('Por favor, preencha seu nome, endereço e selecione o bairro!', 'warning'); 
+        return; 
+    }
 
-    try {
-        if (stockUpdates.length > 0) {
-            await postData({ action: 'updateStockByFlavor', updates: stockUpdates });
-        }
-    } catch (e) { console.error(e); }
-
+    
     let msg = `🍦 *Novo Pedido - Frutos de Goiás*\n\n`;
     msg += `👤 *Cliente:* ${name}\n`;
     msg += `📍 *Endereço:* ${address}\n`;
@@ -435,26 +424,59 @@ document.getElementById('btn-finish-order').onclick = async () => {
     
     cart.forEach(item => {
         msg += `• *${item.qty}x ${item.name}* (R$ ${item.totalPrice.toFixed(2)})\n`;
-        if (item.chosenOptions.length) msg += `  _Sabores: ${item.chosenOptions.join(', ')}_\n`;
-        if (item.chosenExtras.length) msg += `  _Extras: ${item.chosenExtras.join(', ')}_\n`;
+        if (item.chosenOptions && item.chosenOptions.length) msg += `  _Sabores: ${item.chosenOptions.join(', ')}_\n`;
+        if (item.chosenExtras && item.chosenExtras.length) msg += `  _Extras: ${item.chosenExtras.join(', ')}_\n`;
     });
     
     const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
     const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
     const deliveryFee = neighborhood ? neighborhood.fee : 0;
     const discount = subtotal >= DISCOUNT_THRESHOLD ? DISCOUNT_AMOUNT : 0;
+    const totalGeral = (subtotal + deliveryFee - discount);
     
     msg += `\n💰 *Subtotal:* R$ ${subtotal.toFixed(2)}`;
     msg += `\n🚚 *Entrega:* R$ ${deliveryFee.toFixed(2)}`;
     if (discount > 0) msg += `\n🎁 *Desconto:* -R$ ${discount.toFixed(2)}`;
-    msg += `\n\n⭐ *TOTAL: R$ ${(subtotal + deliveryFee - discount).toFixed(2)}*`;
+    msg += `\n\n⭐ *TOTAL: R$ ${totalGeral.toFixed(2)}*`;
 
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
+
+    try {
+        const stockUpdates = [];
+        cart.forEach(item => {
+            if (item.chosenOptions && item.chosenOptions.length > 0) {
+                const chargePerFlavor = typeof isChargePerFlavor === 'function' ? isChargePerFlavor(item.category || "") : false;
+                item.chosenOptions.forEach(flavor => {
+                    const qtyToDiscount = chargePerFlavor ? 1 : (item.qty / item.chosenOptions.length);
+                    stockUpdates.push({ productId: item.id, flavor: flavor, qty: qtyToDiscount });
+                });
+            }
+        });
+
+        if (stockUpdates.length > 0) {
+      
+            postData({ action: 'updateStockByFlavor', updates: stockUpdates });
+        }
+    } catch (e) { 
+        console.error("Erro ao processar estoque:", e); 
+    }
+
+   
+    const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg )}`;
     
+    
+    const newWindow = window.open(whatsappUrl, '_blank');
+    if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
+        window.location.href = whatsappUrl;
+    }
+    
+  
     cart = [];
     updateCart();
-    cartDrawer.classList.remove('open');
-    await initializeApp();
+    if (cartDrawer) cartDrawer.classList.remove('open');
+    showToast('Pedido enviado com sucesso!', 'success');
+    
+    // Recarrega os dados para atualizar o estoque visualmente
+    setTimeout(() => initializeApp(), 2000);
 };
 
 // Admin Functions
