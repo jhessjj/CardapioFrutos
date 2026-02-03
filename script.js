@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbzNJrhLw1Vez63LTmz5kr_G_yZ9EBVjNVFTtEPLYpynPAdcv3MoDgHfxmrOH5squ2ZI/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwpv4OcS_LSAiKxspnsLAtJXljbVFk9YD4s8qpYVR_bVRew4x7XfrYMbC8cDWgciKLImA/exec";
 const WHATSAPP_NUMBER = "558994127037";
 const ADMIN_PASSWORD = "Frutosp1725";
 const DISCOUNT_THRESHOLD = 50.00;
@@ -57,7 +57,11 @@ async function initializeApp() {
         fetchData('getNeighborhoods')
     ]);
 
-   products = productsData.map(p => {
+    if (!Array.isArray(productsData)) {
+        console.error("Dados de produtos inválidos:", productsData);
+        products = [];
+    } else {
+        products = productsData.map(p => {
     let rawStock = null;
     for (let key in p) {
         if (key.toLowerCase().trim() === 'stock') {
@@ -80,10 +84,22 @@ async function initializeApp() {
     }
 
     // Processa Restrições (Sabores)
-    let rawRestrictions = p.restrictions || '{}';
-    try {
-        p.restrictions = (typeof rawRestrictions === 'string') ? JSON.parse(rawRestrictions) : rawRestrictions;
-    } catch(e) {
+    let rawRestrictions = null;
+    for (let key in p) {
+        if (key.toLowerCase().trim() === 'restrictions') {
+            rawRestrictions = p[key];
+            break;
+        }
+    }
+    if (typeof rawRestrictions === 'string') {
+        try { 
+            p.restrictions = JSON.parse(rawRestrictions); 
+        } catch(e) { 
+            p.restrictions = {}; 
+        }
+    } else if (rawRestrictions && typeof rawRestrictions === 'object') {
+        p.restrictions = rawRestrictions;
+    } else {
         p.restrictions = {};
     }
 
@@ -94,9 +110,10 @@ async function initializeApp() {
     p.options = (typeof rawOptions === 'string') ? rawOptions.split(',').map(s => s.trim()).filter(s => s) : (Array.isArray(rawOptions) ? rawOptions : []);
     
     return p;
-});
+        });
+    }
 
-    neighborhoods = neighborhoodsData;
+    neighborhoods = Array.isArray(neighborhoodsData) ? neighborhoodsData : [];
 
     renderMenu();
     renderNeighborhoodSelector();
@@ -266,6 +283,7 @@ function isChargePerFlavor(category) {
     return !(cat.includes('self service') || cat.includes('self-service'));
 }
 
+// Options Modal - RESTORED ORIGINAL FLOW
 function openOptions(productId) {
     const prod = products.find(p => p.id.toString() === productId.toString());
     if (!prod) return;
@@ -283,7 +301,7 @@ function openOptions(productId) {
 
     const hasOptions = prod.options && prod.options.length > 0;
     
-    
+    // Original Logic: Show/Hide global qty based on options
     const globalQtyControl = document.querySelector('.qty-control');
     if (globalQtyControl) {
         if (hasOptions) globalQtyControl.style.display = 'none';
