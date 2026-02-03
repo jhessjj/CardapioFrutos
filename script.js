@@ -466,7 +466,7 @@ document.getElementById('btn-finish-order').onclick = () => {
     const address = document.getElementById('client-address').value;
     if (!name || !address) { showToast('Preencha seu nome e endereço!', 'warning'); return; }
 
-    let message = `*Novo Pedido - Frutos do Brasil*\n\n*Cliente:* ${name}\n*Endereço:* ${address}\n*Bairro:* ${selectedNeighborhood}\n\n*Itens:*\n`;
+    let message = `*Novo Pedido - WhatsApp*\n\n*Cliente:* ${name}\n*Endereço:* ${address}\n*Bairro:* ${selectedNeighborhood}\n\n*Itens:*\n`;
     cart.forEach(item => {
         const flavorText = item.options.map(o => `${o.qty}x ${o.name}`).join(', ');
         message += `• ${item.quantity}x ${item.name} (${flavorText})\n`;
