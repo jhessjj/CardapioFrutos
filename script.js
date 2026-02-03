@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbxlvzgRkSrFvWGgJxvrYOn0UmuJztOEbwhJtqFx7nyPUh4IQBp9uxZwUqcCJdi6pnaJxg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzNJrhLw1Vez63LTmz5kr_G_yZ9EBVjNVFTtEPLYpynPAdcv3MoDgHfxmrOH5squ2ZI/exec";
 const WHATSAPP_NUMBER = "558994127037";
 const ADMIN_PASSWORD = "Frutosp1725";
 const DISCOUNT_THRESHOLD = 50.00;
@@ -57,30 +57,40 @@ async function initializeApp() {
         fetchData('getNeighborhoods')
     ]);
 
-    products = productsData.map(p => {
-        // Normalização de campos para garantir compatibilidade com a planilha
-        // Verifica se 'extra' ou 'extras' existe e garante que seja um array
-        let rawExtras = p.extras || p.extra || [];
-        if (typeof rawExtras === 'string') {
-            p.extras = rawExtras.split(',').map(s => s.trim()).filter(s => s);
-        } else {
-            p.extras = Array.isArray(rawExtras) ? rawExtras : [];
+   products = productsData.map(p => {
+    // 1. Procura a coluna de estoque de forma flexível (ignora maiúsculas/minúsculas)
+    let rawStock = null;
+    for (let key in p) {
+        if (key.toLowerCase().trim() === 'stock') {
+            rawStock = p[key];
+            break;
         }
+    }
 
-        let rawOptions = p.options || p.option || [];
-        if (typeof rawOptions === 'string') {
-            p.options = rawOptions.split(',').map(s => s.trim()).filter(s => s);
-        } else {
-            p.options = Array.isArray(rawOptions) ? rawOptions : [];
+    // 2. Processa o estoque encontrado
+    if (typeof rawStock === 'string') {
+        try { 
+            p.stock = JSON.parse(rawStock); 
+        } catch(e) { 
+            console.error("Erro ao ler JSON de estoque:", e);
+            p.stock = {}; 
         }
-        
-        if (typeof p.stock === 'string') {
-            try { p.stock = JSON.parse(p.stock); } catch(e) { p.stock = {}; }
-        } else if (!p.stock) {
-            p.stock = {};
-        }
-        return p;
-    });
+    } else if (rawStock && typeof rawStock === 'object') {
+        p.stock = rawStock;
+    } else {
+        p.stock = {};
+    }
+
+    // 3. Normaliza Extras e Opções (Sabores)
+    let rawExtras = p.extras || p.extra || [];
+    p.extras = (typeof rawExtras === 'string') ? rawExtras.split(',').map(s => s.trim()).filter(s => s) : (Array.isArray(rawExtras) ? rawExtras : []);
+
+    let rawOptions = p.options || p.option || [];
+    p.options = (typeof rawOptions === 'string') ? rawOptions.split(',').map(s => s.trim()).filter(s => s) : (Array.isArray(rawOptions) ? rawOptions : []);
+    
+    return p;
+});
+
     neighborhoods = neighborhoodsData;
 
     renderMenu();
@@ -156,15 +166,26 @@ document.getElementById('tab-neighborhoods').onclick = () => {
 
 // Menu Rendering
 function renderMenu(filter = '') {
-    categoriesContainer.innerHTML = '';
+    // 1. Garante que o container existe antes de começar
+    const container = document.getElementById('categories-container');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
     if (!products || products.length === 0) {
-        categoriesContainer.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>Nenhum produto encontrado.</p></div>';
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>Nenhum produto encontrado.</p></div>';
         return;
     }
+
+    // 2. Pega as categorias únicas
     const categories = [...new Set(products.map(p => p.category))];
     
     categories.forEach(cat => {
-        const catProducts = products.filter(p => p.category === cat && p.name.toLowerCase().includes(filter.toLowerCase()));
+        const catProducts = products.filter(p => 
+            p.category === cat && 
+            (p.name || '').toLowerCase().includes((filter || '').toLowerCase())
+        );
+        
         if (catProducts.length === 0) return;
 
         const section = document.createElement('div');
@@ -179,23 +200,36 @@ function renderMenu(filter = '') {
             const card = document.createElement('div');
             card.className = 'product-card';
             
+            // 3. Lógica de Disponibilidade (CORRIGIDA E SEGURA)
             let isOutOfStock = false;
-            if (prod.options && prod.options.length > 0) {
-                const hasStockData = prod.stock && Object.keys(prod.stock).length > 0;
-                if (hasStockData) {
-                    const totalStock = Object.values(prod.stock).reduce((a, b) => a + (Number(b) || 0), 0);
-                    if (totalStock <= 0) isOutOfStock = true;
+            const hasOptions = prod.options && Array.isArray(prod.options) && prod.options.length > 0;
+            
+            if (hasOptions) {
+                const stockData = prod.stock || {};
+                // Verifica se existe pelo menos UM sabor que não está zerado
+                const hasAvailableFlavor = prod.options.some(opt => {
+                    const cleanOpt = opt.toString().trim();
+                    const stockValue = stockData[cleanOpt];
+                    // Se não tem no estoque ou é maior que 0, está disponível
+                    return stockValue === undefined || Number(stockValue) > 0;
+                });
+                
+                // Se NÃO tem nenhum sabor disponível, então está fora de estoque
+                if (!hasAvailableFlavor) {
+                    isOutOfStock = true;
                 }
             }
 
+            // 4. Montagem do Card
+            const price = parseFloat(prod.price || 0).toFixed(2);
             card.innerHTML = `
                 <div class="product-image" onclick="openOptions('${prod.id}')">
                     ${prod.img ? `<img src="${prod.img}" alt="${prod.name}">` : '<span>🍨</span>'}
                 </div>
                 <div class="product-info">
-                    <div class="product-name">${prod.name}</div>
+                    <div class="product-name">${prod.name || 'Sem nome'}</div>
                     <div class="product-desc" style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">${prod.desc || ''}</div>
-                    <div class="product-price">R$ ${parseFloat(prod.price).toFixed(2)}</div>
+                    <div class="product-price">R$ ${price}</div>
                     <button class="btn-add-cart" ${isOutOfStock ? 'disabled' : ''} onclick="openOptions('${prod.id}')">
                         ${isOutOfStock ? 'Indisponível' : 'Adicionar'}
                     </button>
@@ -203,9 +237,10 @@ function renderMenu(filter = '') {
             `;
             grid.appendChild(card);
         });
-        categoriesContainer.appendChild(section);
+        container.appendChild(section);
     });
 }
+
 
 document.getElementById('search-input').oninput = (e) => {
     renderMenu(e.target.value);
@@ -510,26 +545,52 @@ function renderAdminProducts() {
     });
 }
 
+
 window.toggleFlavorAvailability = async (productId, flavor, setAvailable) => {
     const p = products.find(prod => prod.id.toString() === productId.toString());
     if (!p) return;
-    if (!p.stock) p.stock = {};
-    p.stock[flavor] = setAvailable ? 1 : 0;
+    
+    if (!p.stock || typeof p.stock !== 'object') p.stock = {};
+    
+    
+    const flavorKey = flavor.trim();
+    p.stock[flavorKey] = setAvailable ? 1 : 0;
+    
     renderAdminProducts(); 
-    // Envia o objeto de estoque completo para persistir na planilha
-    await postData({ action: 'saveProduct', data: { ...p, stock: JSON.stringify(p.stock) } });
+    
+    
+    await postData({ 
+        action: 'saveProduct', 
+        data: { ...p, stock: JSON.stringify(p.stock) } 
+    });
 };
+
 
 document.getElementById('product-form').onsubmit = async (e) => {
     e.preventDefault();
     const id = document.getElementById('edit-index').value;
-    const options = document.getElementById('prod-options').value.split(',').map(s => s.trim()).filter(s => s);
+    
+    
+    const options = document.getElementById('prod-options').value
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s);
+        
     let existingStock = {};
     if (id) {
         const p = products.find(prod => prod.id.toString() === id.toString());
-        if (p && p.stock) existingStock = p.stock;
+        if (p && p.stock) {
+            existingStock = (typeof p.stock === 'string') ? JSON.parse(p.stock) : p.stock;
+        }
     }
-    options.forEach(opt => { if (existingStock[opt] === undefined) existingStock[opt] = 1; });
+
+    
+    const newStock = {};
+    options.forEach(opt => {
+        const cleanOpt = opt.trim();
+       
+        newStock[cleanOpt] = (existingStock[cleanOpt] !== undefined) ? existingStock[cleanOpt] : 1;
+    });
     
     const productData = {
         id: id || null,
@@ -538,10 +599,11 @@ document.getElementById('product-form').onsubmit = async (e) => {
         price: parseFloat(document.getElementById('prod-price').value),
         img: document.getElementById('prod-img').value,
         desc: document.getElementById('prod-desc').value,
-        options: options,
+        options: options, // Envia o array de sabores limpos
         extras: document.getElementById('prod-extras').value.split(',').map(s => s.trim()).filter(s => s),
-        stock: JSON.stringify(existingStock)
+        stock: JSON.stringify(newStock)
     };
+
     const result = await postData({ action: 'saveProduct', data: productData });
     if (result.status === 'success') {
         await initializeApp();
