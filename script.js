@@ -58,7 +58,6 @@ async function initializeApp() {
     ]);
 
    products = productsData.map(p => {
-    // 1. Procura a coluna de estoque de forma flexível (ignora maiúsculas/minúsculas)
     let rawStock = null;
     for (let key in p) {
         if (key.toLowerCase().trim() === 'stock') {
@@ -67,7 +66,6 @@ async function initializeApp() {
         }
     }
 
-    // 2. Processa o estoque encontrado
     if (typeof rawStock === 'string') {
         try { 
             p.stock = JSON.parse(rawStock); 
@@ -81,7 +79,14 @@ async function initializeApp() {
         p.stock = {};
     }
 
-    // 3. Normaliza Extras e Opções (Sabores)
+    // Processa Restrições (Sabores)
+    let rawRestrictions = p.restrictions || '{}';
+    try {
+        p.restrictions = (typeof rawRestrictions === 'string') ? JSON.parse(rawRestrictions) : rawRestrictions;
+    } catch(e) {
+        p.restrictions = {};
+    }
+
     let rawExtras = p.extras || p.extra || [];
     p.extras = (typeof rawExtras === 'string') ? rawExtras.split(',').map(s => s.trim()).filter(s => s) : (Array.isArray(rawExtras) ? rawExtras : []);
 
@@ -166,7 +171,6 @@ document.getElementById('tab-neighborhoods').onclick = () => {
 
 // Menu Rendering
 function renderMenu(filter = '') {
-    // 1. Garante que o container existe antes de começar
     const container = document.getElementById('categories-container');
     if (!container) return;
     
@@ -177,7 +181,6 @@ function renderMenu(filter = '') {
         return;
     }
 
-    // 2. Pega as categorias únicas
     const categories = [...new Set(products.map(p => p.category))];
     
     categories.forEach(cat => {
@@ -200,27 +203,19 @@ function renderMenu(filter = '') {
             const card = document.createElement('div');
             card.className = 'product-card';
             
-            // 3. Lógica de Disponibilidade (CORRIGIDA E SEGURA)
             let isOutOfStock = false;
             const hasOptions = prod.options && Array.isArray(prod.options) && prod.options.length > 0;
             
             if (hasOptions) {
                 const stockData = prod.stock || {};
-                // Verifica se existe pelo menos UM sabor que não está zerado
                 const hasAvailableFlavor = prod.options.some(opt => {
                     const cleanOpt = opt.toString().trim();
                     const stockValue = stockData[cleanOpt];
-                    // Se não tem no estoque ou é maior que 0, está disponível
                     return stockValue === undefined || Number(stockValue) > 0;
                 });
-                
-                // Se NÃO tem nenhum sabor disponível, então está fora de estoque
-                if (!hasAvailableFlavor) {
-                    isOutOfStock = true;
-                }
+                if (!hasAvailableFlavor) isOutOfStock = true;
             }
 
-            // 4. Montagem do Card
             const price = parseFloat(prod.price || 0).toFixed(2);
             card.innerHTML = `
                 <div class="product-image" onclick="openOptions('${prod.id}')">
@@ -240,7 +235,6 @@ function renderMenu(filter = '') {
         container.appendChild(section);
     });
 }
-
 
 document.getElementById('search-input').oninput = (e) => {
     renderMenu(e.target.value);
@@ -269,102 +263,94 @@ document.getElementById('neighborhood-select').onchange = (e) => {
 function isChargePerFlavor(category) {
     if (!category) return false;
     const cat = category.toLowerCase();
-    // Se for self-service, o preço é fixo (não cobra por sabor)
     return !(cat.includes('self service') || cat.includes('self-service'));
 }
 
-// Options Modal
-window.openOptions = (productId) => {
-    currentProductForOptions = products.find(p => p.id.toString() === productId.toString());
-    if (!currentProductForOptions) return;
+function openOptions(productId) {
+    const prod = products.find(p => p.id.toString() === productId.toString());
+    if (!prod) return;
 
+    currentProductForOptions = prod;
     selectedOptions = [];
     selectedExtras = [];
     selectedQuantity = 1;
     
-    document.getElementById('modal-prod-name').innerText = currentProductForOptions.name;
+    document.getElementById('modal-prod-name').innerText = prod.name;
     document.getElementById('qty-input').value = 1;
     
     const container = document.getElementById('options-container');
     container.innerHTML = '';
 
-    const hasOptions = currentProductForOptions.options && currentProductForOptions.options.length > 0;
+    const hasOptions = prod.options && prod.options.length > 0;
     
-    // Mostra/Esconde o seletor de quantidade global
+    
     const globalQtyControl = document.querySelector('.qty-control');
     if (globalQtyControl) {
         if (hasOptions) globalQtyControl.style.display = 'none';
         else globalQtyControl.style.display = 'flex';
     }
 
-    // Sabores
     if (hasOptions) {
         const group = document.createElement('div');
         group.className = 'option-group';
-        group.innerHTML = `<label>Escolha os Sabores</label>`;
-        const list = document.createElement('div');
-        list.className = 'flavor-list-container';
+        group.innerHTML = `<label>Escolha os sabores:</label><div class="flavor-list-container"></div>`;
+        const list = group.querySelector('.flavor-list-container');
         
-        currentProductForOptions.options.forEach(opt => {
-            // Verifica estoque individual do sabor
-            const stockValue = (currentProductForOptions.stock && currentProductForOptions.stock[opt] !== undefined) ? currentProductForOptions.stock[opt] : 1;
+        prod.options.forEach(opt => {
+            const stockValue = (prod.stock && prod.stock[opt] !== undefined) ? prod.stock[opt] : 1;
             const isAvailable = Number(stockValue) > 0;
+            const restrictions = prod.restrictions?.[opt] || { glutenFree: false, lactoseFree: false };
             
+            let badgesHTML = '';
+            if (restrictions.glutenFree) badgesHTML += '<span class="badge badge-gluten" style="margin-left:5px">S. Glúten</span>';
+            if (restrictions.lactoseFree) badgesHTML += '<span class="badge badge-lactose" style="margin-left:5px">S. Lactose</span>';
+
             const item = document.createElement('div');
             item.className = 'flavor-item-row';
-            item.style = "display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee;";
             item.innerHTML = `
-                <span style="${!isAvailable ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${opt}</span>
-                ${isAvailable ? `
-                <div class="flavor-qty-controls" style="display: flex; align-items: center; gap: 10px;">
-                    <button type="button" onclick="updateFlavorQty('${opt}', -1)" class="btn-flavor-qty">-</button>
-                    <span id="qty-${opt}" class="flavor-qty-num">0</span>
-                    <button type="button" onclick="updateFlavorQty('${opt}', 1)" class="btn-flavor-qty">+</button>
+                <div style="display:flex; flex-direction:column">
+                    <span style="${!isAvailable ? 'color: #9ca3af; text-decoration: line-through;' : ''}">${opt} ${!isAvailable ? '<span class="out-of-stock-label">(Esgotado)</span>' : ''}</span>
+                    <div style="display:flex; gap:4px; margin-top:2px">${badgesHTML}</div>
                 </div>
-                ` : '<span class="out-of-stock-label" style="color: red; font-size: 10px;">ESGOTADO</span>'}
+                ${isAvailable ? `
+                <div class="flavor-qty-control" style="display:flex; align-items:center; gap:8px;">
+                    <button class="btn-flavor-qty" onclick="updateFlavorQty('${opt}', -1)">-</button>
+                    <span class="flavor-qty-num" id="qty-${opt}">0</span>
+                    <button class="btn-flavor-qty" onclick="updateFlavorQty('${opt}', 1)">+</button>
+                </div>
+                ` : ''}
             `;
             list.appendChild(item);
         });
-        group.appendChild(list);
         container.appendChild(group);
     }
 
-    // Extras
-    if (currentProductForOptions.extras && currentProductForOptions.extras.length > 0) {
+    if (prod.extras && prod.extras.length > 0) {
         const group = document.createElement('div');
         group.className = 'option-group';
-        group.innerHTML = `<label>Extras (Opcional)</label>`;
-        const list = document.createElement('div');
-        list.className = 'option-list';
-        list.style = "display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;";
-        
-        currentProductForOptions.extras.forEach(extra => {
+        group.innerHTML = `<label>Extras (Máx. 3):</label><div class="option-list"></div>`;
+        const list = group.querySelector('.option-list');
+        prod.extras.forEach(extra => {
             const item = document.createElement('div');
             item.className = 'option-item';
             item.innerText = extra;
-            item.style = "padding: 8px 12px; border: 1px solid #ddd; border-radius: 20px; cursor: pointer; font-size: 14px;";
-            item.onclick = () => {
-                item.classList.toggle('selected');
-                if (item.classList.contains('selected')) {
-                    item.style.backgroundColor = '#ff6b00';
-                    item.style.color = 'white';
-                    item.style.borderColor = '#ff6b00';
-                } else {
-                    item.style.backgroundColor = 'transparent';
-                    item.style.color = 'inherit';
-                    item.style.borderColor = '#ddd';
-                }
-                const idx = selectedExtras.indexOf(extra);
-                if (idx > -1) selectedExtras.splice(idx, 1);
-                else selectedExtras.push(extra);
-            };
+            item.onclick = () => toggleExtra(extra, item);
             list.appendChild(item);
         });
-        group.appendChild(list);
         container.appendChild(group);
+        
+        const deliveryOption = document.createElement('div');
+        deliveryOption.className = 'extra-delivery-option';
+        deliveryOption.innerHTML = `
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="extras-separate"> Enviar extras separadamente
+            </label>
+        `;
+        container.appendChild(deliveryOption);
     }
+
     optionsModal.classList.remove('hidden');
-};
+}
 
 window.updateFlavorQty = (flavor, delta) => {
     const isSelfService = currentProductForOptions.category.toLowerCase().includes('self');
@@ -372,7 +358,7 @@ window.updateFlavorQty = (flavor, delta) => {
     let existing = selectedOptions.find(o => o.name === flavor);
     
     if (delta > 0) {
-        // Trava de até 3 sabores para Self Service
+        // Original Logic: Limit 3 flavors for Self Service
         if (isSelfService && currentTotal >= 3) {
             showToast('Limite de 3 sabores para Self Service!', 'warning');
             return;
@@ -392,10 +378,20 @@ window.updateFlavorQty = (flavor, delta) => {
     if (qtySpan) qtySpan.innerText = existing ? existing.qty : 0;
 };
 
-document.getElementById('btn-qty-plus').onclick = () => {
-    selectedQuantity++;
-    document.getElementById('qty-input').value = selectedQuantity;
-};
+function toggleExtra(extra, element) {
+    const idx = selectedExtras.indexOf(extra);
+    if (idx > -1) {
+        selectedExtras.splice(idx, 1);
+        element.classList.remove('selected');
+    } else {
+        if (selectedExtras.length >= 3) {
+            showToast('Limite de 3 extras atingido!', 'warning');
+            return;
+        }
+        selectedExtras.push(extra);
+        element.classList.add('selected');
+    }
+}
 
 document.getElementById('btn-qty-minus').onclick = () => {
     if (selectedQuantity > 1) {
@@ -404,110 +400,150 @@ document.getElementById('btn-qty-minus').onclick = () => {
     }
 };
 
-window.closeOptions = () => optionsModal.classList.add('hidden');
-document.getElementById('btn-close-options').onclick = closeOptions;
-document.getElementById('btn-close-options-alt').onclick = closeOptions;
+document.getElementById('btn-qty-plus').onclick = () => {
+    selectedQuantity++;
+    document.getElementById('qty-input').value = selectedQuantity;
+};
 
 document.getElementById('btn-confirm-options').onclick = () => {
-    const hasOptions = currentProductForOptions.options && currentProductForOptions.options.length > 0;
-    if (hasOptions && selectedOptions.length === 0) {
-        showToast('Por favor, selecione pelo menos um sabor!', 'warning');
+    const totalFlavors = selectedOptions.reduce((sum, o) => sum + o.qty, 0);
+    const hasOptions = currentProductForOptions.options.length > 0;
+    
+    if (hasOptions && totalFlavors === 0) {
+        showToast('Selecione pelo menos um sabor!', 'warning');
         return;
     }
-    
-    let qty = 1;
-    if (hasOptions) {
-        qty = 1; 
-    } else {
-        qty = parseInt(document.getElementById('qty-input').value) || 1;
-    }
-    
-    let unitPrice = parseFloat(currentProductForOptions.price);
-    const chargePerFlavor = isChargePerFlavor(currentProductForOptions.category);
-    
-    // Se NÃO for self-service, multiplica o preço pela quantidade total de sabores
-    if (chargePerFlavor && selectedOptions.length > 0) {
-        const totalFlavors = selectedOptions.reduce((acc, curr) => acc + curr.qty, 0);
-        unitPrice = unitPrice * totalFlavors;
-    }
 
-    cart.push({
+    const extrasSeparate = document.getElementById('extras-separate')?.checked || false;
+
+    const cartItem = {
         id: Date.now(),
         productId: currentProductForOptions.id,
+        category: currentProductForOptions.category,
         name: currentProductForOptions.name,
-        price: unitPrice,
-        quantity: qty,
+        price: currentProductForOptions.price,
+        quantity: (hasOptions && totalFlavors > 0) ? totalFlavors : selectedQuantity,
         options: [...selectedOptions],
-        extras: [...selectedExtras]
-    });
+        extras: [...selectedExtras],
+        extrasSeparate: extrasSeparate
+    };
+
+    cart.push(cartItem);
     updateCart();
-    closeOptions();
+    optionsModal.classList.add('hidden');
     showToast('Adicionado ao carrinho!', 'success');
 };
 
-// Cart Logic
+document.getElementById('btn-close-options').onclick = () => optionsModal.classList.add('hidden');
+document.getElementById('btn-close-options-alt').onclick = () => optionsModal.classList.add('hidden');
+
 function updateCart() {
-    const cartItems = document.getElementById('cart-items');
-    cartItems.innerHTML = '';
+    const container = document.getElementById('cart-items');
+    container.innerHTML = '';
     let subtotal = 0;
-    
+
     cart.forEach(item => {
-        const totalItemPrice = item.price * item.quantity;
-        subtotal += totalItemPrice;
+        const isSelfService = item.category && (item.category.toLowerCase().includes('self service') || item.category.toLowerCase().includes('self-service'));
+        const itemTotal = isSelfService ? item.price : (item.price * item.quantity);
+        subtotal += itemTotal;
+
         const div = document.createElement('div');
         div.className = 'cart-item';
+        
         const flavorText = item.options.map(o => `${o.qty}x ${o.name}`).join(', ');
-        const extraText = item.extras.length > 0 ? ` + ${item.extras.join(', ')}` : '';
+        const extrasText = item.extras.length > 0 ? ` + Extras: ${item.extras.join(', ')}${item.extrasSeparate ? ' (Separados)' : ''}` : '';
+
         div.innerHTML = `
             <div class="cart-item-header">
-                <span>${item.quantity}x ${item.name}</span>
-                <span>R$ ${totalItemPrice.toFixed(2)}</span>
+                <span>${item.name}</span>
+                <span>R$ ${itemTotal.toFixed(2)}</span>
             </div>
-            <div class="cart-item-details">${flavorText}${extraText}</div>
+            <div class="cart-item-details">
+                ${flavorText ? `${flavorText}` : `${item.quantity} un.`}${extrasText}
+            </div>
             <button class="btn-remove-item" onclick="removeFromCart(${item.id})">Remover</button>
         `;
-        cartItems.appendChild(div);
+        container.appendChild(div);
     });
 
     const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
     const deliveryFee = neighborhood ? neighborhood.fee : 0;
-    let discount = (subtotal >= DISCOUNT_THRESHOLD) ? DISCOUNT_AMOUNT : 0;
+    
+    let discount = 0;
+    if (subtotal >= DISCOUNT_THRESHOLD) discount = DISCOUNT_AMOUNT;
+
     const total = subtotal + deliveryFee - discount;
 
-    const subtotalDisplay = document.getElementById('subtotal');
-    if (subtotalDisplay) subtotalDisplay.innerText = `R$ ${subtotal.toFixed(2)}`;
+    document.getElementById('subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
+    document.getElementById('delivery-fee').innerText = `R$ ${deliveryFee.toFixed(2)}`;
     
-    const feeDisplay = document.getElementById('delivery-fee');
-    if (feeDisplay) feeDisplay.innerText = `R$ ${deliveryFee.toFixed(2)}`;
-    
-    const discountDisplay = document.getElementById('discount-amount');
-    if (discountDisplay) discountDisplay.innerText = `- R$ ${discount.toFixed(2)}`;
-    
-    const totalDisplay = document.getElementById('cart-total');
-    if (totalDisplay) totalDisplay.innerText = `R$ ${total.toFixed(2)}`;
-    
-    const countDisplay = document.getElementById('cart-count');
-    if (countDisplay) countDisplay.innerText = cart.reduce((acc, item) => acc + item.quantity, 0);
+    const discRow = document.getElementById('discount-row');
+    if (discount > 0) {
+        discRow.style.display = 'flex';
+        document.getElementById('discount-amount').innerText = `- R$ ${discount.toFixed(2)}`;
+    } else {
+        discRow.style.display = 'none';
+    }
+
+    document.getElementById('cart-total').innerText = `R$ ${total.toFixed(2)}`;
+    document.getElementById('cart-count').innerText = cart.reduce((sum, i) => sum + i.quantity, 0);
 }
 
-window.removeFromCart = (id) => { cart = cart.filter(item => item.id !== id); updateCart(); };
+window.removeFromCart = (id) => {
+    cart = cart.filter(i => i.id !== id);
+    updateCart();
+};
+
 document.getElementById('open-cart').onclick = () => cartDrawer.classList.add('open');
 document.getElementById('close-cart').onclick = () => cartDrawer.classList.remove('open');
 
 document.getElementById('btn-finish-order').onclick = () => {
     if (cart.length === 0) { showToast('Seu carrinho está vazio!', 'warning'); return; }
     if (!selectedNeighborhood) { showToast('Selecione seu bairro!', 'warning'); return; }
+    
     const name = document.getElementById('client-name').value;
-    const address = document.getElementById('client-address').value;
-    if (!name || !address) { showToast('Preencha seu nome e endereço!', 'warning'); return; }
+    const street = document.getElementById('client-street').value;
+    const number = document.getElementById('client-number').value;
+    const ref = document.getElementById('client-ref').value;
+    const type = document.getElementById('client-type').value;
 
-    let message = `*Novo Pedido - WhatsApp*\n\n*Cliente:* ${name}\n*Endereço:* ${address}\n*Bairro:* ${selectedNeighborhood}\n\n*Itens:*\n`;
+    if (!name || !street || !number || !type) { 
+        showToast('Preencha seu nome, rua, número e se é casa/apto!', 'warning'); 
+        return; 
+    }
+
+    const fullAddress = `${street}, Nº ${number}${ref ? ` (Ref: ${ref})` : ''} - ${type}`;
+    const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
+    const deliveryFee = neighborhood ? neighborhood.fee : 0;
+    
+    let subtotal = cart.reduce((sum, i) => {
+        const isSelfService = i.category && (i.category.toLowerCase().includes('self service') || i.category.toLowerCase().includes('self-service'));
+        const priceToUse = isSelfService ? i.price : (i.price * i.quantity);
+        return sum + priceToUse;
+    }, 0);
+    let discount = subtotal >= DISCOUNT_THRESHOLD ? DISCOUNT_AMOUNT : 0;
+    const total = subtotal + deliveryFee - discount;
+
+    let message = `*Novo Pedido - WhatsApp*\n\n`;
+    message += `*Cliente:* ${name}\n`;
+    message += `*Endereço:* ${fullAddress}\n`;
+    message += `*Bairro:* ${selectedNeighborhood}\n\n`;
+    
+    message += `*Itens:*\n`;
     cart.forEach(item => {
         const flavorText = item.options.map(o => `${o.qty}x ${o.name}`).join(', ');
-        message += `• ${item.quantity}x ${item.name} (${flavorText})\n`;
-        if (item.extras.length > 0) message += `  Extras: ${item.extras.join(', ')}\n`;
+        message += `• ${item.quantity}x ${item.name} ${flavorText ? `(${flavorText})` : ''}\n`;
+        if (item.extras.length > 0) {
+            message += `  Extras: ${item.extras.join(', ')}${item.extrasSeparate ? ' (Enviar separado)' : ''}\n`;
+        }
     });
-    message += `\n*Total:* ${document.getElementById('cart-total').innerText}`;
+    
+    message += `\n*Resumo do Pagamento:*\n`;
+    message += `Subtotal: R$ ${subtotal.toFixed(2)}\n`;
+    message += `Entrega: R$ ${deliveryFee.toFixed(2)}\n`;
+    if (discount > 0) message += `Desconto: - R$ ${discount.toFixed(2)}\n`;
+    message += `*Total:* R$ ${total.toFixed(2)}`;
+
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
 };
 
@@ -519,16 +555,27 @@ function renderAdminProducts() {
         if (p.options && p.options.length > 0) {
             p.options.forEach(opt => {
                 const isAvailable = (p.stock && p.stock[opt] !== undefined) ? Number(p.stock[opt]) > 0 : true;
+                const restrictions = p.restrictions?.[opt] || { glutenFree: false, lactoseFree: false };
+                
                 stockHTML += `
-                    <div class="admin-stock-item">
-                        <span>${opt}</span>
-                        <button type="button" onclick="toggleFlavorAvailability('${p.id}', '${opt}', ${!isAvailable})" 
-                                class="btn-stock-toggle ${isAvailable ? 'available' : 'unavailable'}">
-                            ${isAvailable ? 'Disponível' : 'Indisponível'}
-                        </button>
+                    <div class="admin-flavor-item">
+                        <div class="admin-flavor-header">
+                            <span>${opt}</span>
+                            <button type="button" onclick="toggleFlavorAvailability('${p.id}', '${opt}', ${!isAvailable})" 
+                                    class="btn-stock-toggle ${isAvailable ? 'available' : 'unavailable'}">
+                                ${isAvailable ? 'Disponível' : 'Indisponível'}
+                            </button>
+                        </div>
+                        <div class="admin-flavor-tags">
+                            <button type="button" class="admin-tag-btn gluten ${restrictions.glutenFree ? 'on' : 'off'}" 
+                                onclick="toggleFlavorRestriction('${p.id}', '${opt}', 'glutenFree')">Sem Glúten</button>
+                            <button type="button" class="admin-tag-btn lactose ${restrictions.lactoseFree ? 'on' : 'off'}" 
+                                onclick="toggleFlavorRestriction('${p.id}', '${opt}', 'lactoseFree')">Sem Lactose</button>
+                        </div>
                     </div>`;
             });
         }
+        
         const card = document.createElement('div');
         card.className = 'admin-product-card';
         card.innerHTML = `
@@ -539,57 +586,52 @@ function renderAdminProducts() {
                     <button onclick="deleteProduct('${p.id}')" class="btn-icon-delete"><i class="fas fa-trash"></i></button>
                 </div>
             </div>
-            <div class="admin-card-stock"><h5>Disponibilidade</h5><div class="admin-stock-list">${stockHTML}</div></div>
+            <div class="admin-card-stock"><h5>Configurações de Sabores</h5><div class="admin-stock-list">${stockHTML}</div></div>
         `;
         adminProductList.appendChild(card);
     });
 }
 
-
 window.toggleFlavorAvailability = async (productId, flavor, setAvailable) => {
     const p = products.find(prod => prod.id.toString() === productId.toString());
     if (!p) return;
-    
     if (!p.stock || typeof p.stock !== 'object') p.stock = {};
-    
-    
-    const flavorKey = flavor.trim();
-    p.stock[flavorKey] = setAvailable ? 1 : 0;
-    
+    p.stock[flavor.trim()] = setAvailable ? 1 : 0;
     renderAdminProducts(); 
-    
-    
-    await postData({ 
-        action: 'saveProduct', 
-        data: { ...p, stock: JSON.stringify(p.stock) } 
-    });
+    await postData({ action: 'saveProduct', data: { ...p, stock: JSON.stringify(p.stock), restrictions: JSON.stringify(p.restrictions) } });
 };
 
+window.toggleFlavorRestriction = async (productId, flavor, type) => {
+    const p = products.find(prod => prod.id.toString() === productId.toString());
+    if (!p) return;
+    if (!p.restrictions) p.restrictions = {};
+    if (!p.restrictions[flavor]) p.restrictions[flavor] = { glutenFree: false, lactoseFree: false };
+    p.restrictions[flavor][type] = !p.restrictions[flavor][type];
+    renderAdminProducts();
+    await postData({ action: 'saveProduct', data: { ...p, stock: JSON.stringify(p.stock), restrictions: JSON.stringify(p.restrictions) } });
+};
 
 document.getElementById('product-form').onsubmit = async (e) => {
     e.preventDefault();
     const id = document.getElementById('edit-index').value;
+    const options = document.getElementById('prod-options').value.split(',').map(s => s.trim()).filter(s => s);
     
-    
-    const options = document.getElementById('prod-options').value
-        .split(',')
-        .map(s => s.trim())
-        .filter(s => s);
-        
     let existingStock = {};
+    let existingRestrictions = {};
     if (id) {
         const p = products.find(prod => prod.id.toString() === id.toString());
-        if (p && p.stock) {
+        if (p) {
             existingStock = (typeof p.stock === 'string') ? JSON.parse(p.stock) : p.stock;
+            existingRestrictions = (typeof p.restrictions === 'string') ? JSON.parse(p.restrictions) : p.restrictions;
         }
     }
 
-    
     const newStock = {};
+    const newRestrictions = {};
     options.forEach(opt => {
         const cleanOpt = opt.trim();
-       
         newStock[cleanOpt] = (existingStock[cleanOpt] !== undefined) ? existingStock[cleanOpt] : 1;
+        newRestrictions[cleanOpt] = existingRestrictions[cleanOpt] || { glutenFree: false, lactoseFree: false };
     });
     
     const productData = {
@@ -599,9 +641,10 @@ document.getElementById('product-form').onsubmit = async (e) => {
         price: parseFloat(document.getElementById('prod-price').value),
         img: document.getElementById('prod-img').value,
         desc: document.getElementById('prod-desc').value,
-        options: options, // Envia o array de sabores limpos
+        options: options,
         extras: document.getElementById('prod-extras').value.split(',').map(s => s.trim()).filter(s => s),
-        stock: JSON.stringify(newStock)
+        stock: JSON.stringify(newStock),
+        restrictions: JSON.stringify(newRestrictions)
     };
 
     const result = await postData({ action: 'saveProduct', data: productData });

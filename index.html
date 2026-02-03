@@ -142,7 +142,16 @@
 
   <div class="checkout">
     <input id="client-name" placeholder="Seu nome" />
-    <input id="client-address" placeholder="Endereço" />
+    <div style="display: grid; grid-template-columns: 1fr 80px; gap: 8px; margin-bottom: 10px;">
+        <input id="client-street" placeholder="Rua" style="margin-bottom: 0;" />
+        <input id="client-number" placeholder="Nº" style="margin-bottom: 0;" />
+    </div>
+    <input id="client-ref" placeholder="Ponto de referência" />
+    <select id="client-type" style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #e5e7eb; background: #f9fafb; margin-bottom: 10px; font-size: 14px;">
+        <option value="">Selecione: Casa ou Apartamento</option>
+        <option value="Casa">Casa</option>
+        <option value="Apartamento">Apartamento</option>
+    </select>
     <button id="btn-finish-order">Finalizar Pedido</button>
   </div>
 </div>

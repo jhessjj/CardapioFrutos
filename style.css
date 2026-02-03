@@ -48,137 +48,9 @@
   --primary-dark: #1aab37;
   --primary-light: #d1fae5;
   --secondary: #f0fdf4;
-  --accent: #2ca742;
-  --danger: #ef4444;
-  --dark: #1f2937;
-  --gray: #9ca3af;
-  --light: #f9fafb;
-  --white: #ffffff;
-  --radius: 16px;
-  --shadow: 0 4px 12px rgba(16, 185, 129, 0.08);
-  --shadow-lg: 0 8px 24px rgba(16, 185, 129, 0.12);
-  
-  --primary: oklch(0.577 0.176 142.495);
-  --primary-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.577 0.176 142.495);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --chart-1: oklch(0.577 0.176 142.495);
-  --chart-2: oklch(0.577 0.176 142.495);
-  --chart-3: oklch(0.577 0.176 142.495);
-  --chart-4: oklch(0.577 0.176 142.495);
-  --chart-5: oklch(0.577 0.176 142.495);
-  --radius: 0.75rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.235 0.015 65);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
-  --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.577 0.176 142.495);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.577 0.176 142.495);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.235 0.015 65);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.577 0.176 142.495);
 }
 
-.dark {
-  --primary: oklch(0.577 0.176 142.495);
-  --primary-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.577 0.176 142.495);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.85 0.005 65);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.85 0.005 65);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.85 0.005 65);
-  --secondary: oklch(0.24 0.006 286.033);
-  --secondary-foreground: oklch(0.7 0.005 65);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.577 0.176 142.495);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.577 0.176 142.495);
-  --chart-1: oklch(0.577 0.176 142.495);
-  --chart-2: oklch(0.577 0.176 142.495);
-  --chart-3: oklch(0.577 0.176 142.495);
-  --chart-4: oklch(0.577 0.176 142.495);
-  --chart-5: oklch(0.577 0.176 142.495);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.85 0.005 65);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.577 0.176 142.495);
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-family: 'Poppins', system-ui, sans-serif;
-  }
-  button:not(:disabled),
-  [role="button"]:not([aria-disabled="true"]),
-  [type="button"]:not(:disabled),
-  [type="submit"]:not(:disabled),
-  [type="reset"]:not(:disabled),
-  a[href],
-  select:not(:disabled),
-  input[type="checkbox"]:not(:disabled),
-  input[type="radio"]:not(:disabled) {
-    @apply cursor-pointer;
-  }
-}
-
-@layer components {
-  .container {
-    width: 100%;
-    margin-left: auto;
-    margin-right: auto;
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-
-  .flex {
-    min-height: 0;
-    min-width: 0;
-  }
-
-  @media (min-width: 640px) {
-    .container {
-      padding-left: 1.5rem;
-      padding-right: 1.5rem;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .container {
-      padding-left: 2rem;
-      padding-right: 2rem;
-      max-width: 1280px;
-    }
-  }
-}
-* {
+*{
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -794,7 +666,6 @@ body {
 
 .checkout input {
   width: 100%;
-  padding: 12px 14px;
   margin-bottom: 10px;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
@@ -1169,11 +1040,7 @@ body {
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ADICIONADO APENAS O NECESSÁRIO PARA AS NOVAS FUNCIONALIDADES               */
-/* -------------------------------------------------------------------------- */
 
-/* Container de Sabores com Rolagem */
 .flavor-list-container {
   max-height: 250px; /* Altura máxima antes de começar a rolar */
   overflow-y: auto;  /* Habilita o scroll vertical */
@@ -1197,7 +1064,7 @@ body {
   border-radius: 10px;
 }
 
-/* Linha de sabor com seletor +/- */
+
 .flavor-item-row {
   display: flex;
   justify-content: space-between;
@@ -1233,14 +1100,13 @@ body {
   font-weight: bold;
 }
 
-/* Botões de Disponibilidade no Admin */
+
 .btn-stock-toggle {
   padding: 5px 12px;
   border-radius: 15px;
   border: none;
   color: #fff;
   font-size: 11px;
-  font-weight: 700;
   cursor: pointer;
 }
 
@@ -1250,4 +1116,66 @@ body {
 
 .btn-stock-toggle.unavailable {
   background: #ef4444;
+}
+
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.badge-gluten { background: #fef3c7; color: #92400e; }
+.badge-lactose { background: #e0f2fe; color: #075985; }
+
+.extra-delivery-option {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f8fafc;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+
+.admin-flavor-item {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+    border: 1px solid #f0f0f0;
+}
+.admin-flavor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.admin-flavor-tags {
+    display: flex;
+    gap: 8px;
+}
+.admin-tag-btn {
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    transition: all 0.3s ease;
+}
+.admin-tag-btn.off {
+    background: #fff;
+    border-color: #e5e7eb;
+    color: #9ca3af;
+}
+.admin-tag-btn.gluten.on {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #92400e;
+}
+.admin-tag-btn.lactose.on {
+    background: #e0f2fe;
+    border-color: #3b82f6;
+    color: #075985;
 }
