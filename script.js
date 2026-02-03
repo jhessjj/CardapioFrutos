@@ -519,6 +519,7 @@ document.getElementById('btn-finish-order').onclick = () => {
     if (cart.length === 0) { showToast('Seu carrinho está vazio!', 'warning'); return; }
     if (!selectedNeighborhood) { showToast('Selecione seu bairro!', 'warning'); return; }
     
+    
     const name = document.getElementById('client-name').value;
     const street = document.getElementById('client-street').value;
     const number = document.getElementById('client-number').value;
@@ -529,6 +530,13 @@ document.getElementById('btn-finish-order').onclick = () => {
         showToast('Preencha seu nome, rua, número e se é casa/apto!', 'warning'); 
         return; 
     }
+    const paymentMethod = document.getElementById('payment-method').value;
+const cashChange = document.getElementById('cash-change').value;
+
+if (!paymentMethod) { 
+    showToast('Selecione a forma de pagamento!', 'warning'); 
+    return; 
+}
 
     const fullAddress = `${street}, Nº ${number}${ref ? ` (Ref: ${ref})` : ''} - ${type}`;
     const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
@@ -542,26 +550,22 @@ document.getElementById('btn-finish-order').onclick = () => {
     let discount = subtotal >= DISCOUNT_THRESHOLD ? DISCOUNT_AMOUNT : 0;
     const total = subtotal + deliveryFee - discount;
 
-    let message = `*Novo Pedido - WhatsApp*\n\n`;
-    message += `*Cliente:* ${name}\n`;
-    message += `*Endereço:* ${fullAddress}\n`;
-    message += `*Bairro:* ${selectedNeighborhood}\n\n`;
-    
-    message += `*Itens:*\n`;
-    cart.forEach(item => {
-        const flavorText = item.options.map(o => `${o.qty}x ${o.name}`).join(', ');
-        message += `• ${item.quantity}x ${item.name} ${flavorText ? `(${flavorText})` : ''}\n`;
-        if (item.extras.length > 0) {
-            message += `  Extras: ${item.extras.join(', ')}${item.extrasSeparate ? ' (Enviar separado)' : ''}\n`;
-        }
-    });
-    
-    message += `\n*Resumo do Pagamento:*\n`;
-    message += `Subtotal: R$ ${subtotal.toFixed(2)}\n`;
-    message += `Entrega: R$ ${deliveryFee.toFixed(2)}\n`;
-    if (discount > 0) message += `Desconto: - R$ ${discount.toFixed(2)}\n`;
-    message += `*Total:* R$ ${total.toFixed(2)}`;
+   
 
+let message = `*NOVO PEDIDO* 🍦\n\n`;
+message += `*Cliente:* ${name}\n`;
+message += `*Endereço:* ${fullAddress}\n`;
+message += `*Bairro:* ${selectedNeighborhood}\n`;
+message += `*Pagamento:* ${paymentMethod}${paymentMethod === 'Dinheiro' && cashChange ? ` (Troco p/ ${cashChange})` : ''}\n\n`;
+
+message += `*ITENS:*\n`;
+cart.forEach(item => {
+    const flavors = item.options.map(o => `${o.qty}x ${o.name}`).join(', ');
+    message += `• ${item.quantity}x ${item.name}${flavors ? ` (${flavors})` : ''}\n`;
+    if (item.extras.length > 0) message += `  + Extras: ${item.extras.join(', ')}\n`;
+});
+
+message += `\n*TOTAL: R$ ${total.toFixed(2)}* ✅`;
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
 };
 
@@ -764,3 +768,11 @@ document.getElementById('neighborhood-form').onsubmit = async (e) => {
         document.getElementById('neighborhood-form-title').innerText = "Adicionar Novo Bairro";
     }
 };
+
+
+window.togglePaymentDetails = () => {
+    const method = document.getElementById('payment-method').value;
+    document.getElementById('pix-details').style.display = (method === 'Pix') ? 'block' : 'none';
+    document.getElementById('cash-details').style.display = (method === 'Dinheiro') ? 'block' : 'none';
+};
+

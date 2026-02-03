@@ -152,9 +152,30 @@
         <option value="Casa">Casa</option>
         <option value="Apartamento">Apartamento</option>
     </select>
+    <div class="payment-section" style="margin-top: 12px; border-top: 1px solid #eee; pt: 10px;">
+    <label style="font-weight: bold; display: block; margin-bottom: 5px;">Forma de Pagamento:</label>
+    <select id="payment-method" class="cart-input" onchange="togglePaymentDetails()" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ddd;">
+        <option value="">-- Selecione o pagamento --</option>
+        <option value="Pix">Pix</option>
+        <option value="Dinheiro">Dinheiro</option>
+        <option value="Cartão de Débito">Cartão de Débito</option>
+        <option value="Cartão de Crédito">Cartão de Crédito</option>
+    </select>
+
+    <div id="pix-details" style="display: none; margin-top: 10px; background: #f0fdf4; padding: 10px; border-radius: 5px;">
+        <p style="font-size: 12px; color: #166534; margin: 0;">Chave Pix: 53.294.249/0001-13 <strong></strong></p>
+    </div>
+
+    <div id="cash-details" style="display: none; margin-top: 10px;">
+        <input type="text" id="cash-change" class="cart-input" placeholder="Troco para quanto?" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ddd;">
+    </div>
+</div>
     <button id="btn-finish-order">Finalizar Pedido</button>
   </div>
 </div>
+
+
+
 
 <script src="script.js"></script>
 </body>
