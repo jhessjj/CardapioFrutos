@@ -1,6 +1,6 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwpv4OcS_LSAiKxspnsLAtJXljbVFk9YD4s8qpYVR_bVRew4x7XfrYMbC8cDWgciKLImA/exec";
-const WHATSAPP_NUMBER = "558994127037";
-const ADMIN_PASSWORD = "Frutosp1725";
+const API_URL = "https://script.google.com/macros/s/AKfycbyDdgYbSG2aeu_0PUVgvPxc-zGgVAGiwUqF87nm4dmn1yiH9AitqXlJVb21rqDlsjmF4Q/exec";
+let WHATSAPP_NUMBER = '';
+let isAdminLogged = false;
 const DISCOUNT_THRESHOLD = 50.00;
 const DISCOUNT_AMOUNT = 6.00;
 
@@ -34,24 +34,24 @@ async function fetchData(action) {
 }
 
 async function postData(payload) {
-    try {
-        showToast('Processando...', 'info');
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
+    if (isAdminLogged) {
+        payload.password = 'ADMIN'; // só sinaliza
+    }
+
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+    });
         const result = await response.json();
         if (result.status === 'success') showToast(result.message, 'success');
         else showToast(result.message, 'error');
         return result;
-    } catch (error) {
-        console.error('Erro no postData:', error);
-        showToast(`Erro ao salvar. Verifique a conexão.`, 'error');
-        return { status: 'error', message: error.message };
-    }
+    
 }
 
 async function initializeApp() {
+
+    await loadPublicConfig();
     const [productsData, neighborhoodsData] = await Promise.all([
         fetchData('getProducts'),
         fetchData('getNeighborhoods')
@@ -149,19 +149,31 @@ document.getElementById('btn-view-menu').onclick = () => {
     document.getElementById('btn-view-admin').classList.remove('active');
 };
 
-document.getElementById('btn-view-admin').onclick = () => {
-    const pass = prompt('Digite a senha de administrador:');
-    if (pass === ADMIN_PASSWORD) {
-        menuSection.classList.add('hidden');
-        adminSection.classList.remove('hidden');
-        document.getElementById('btn-view-admin').classList.add('active');
-        document.getElementById('btn-view-menu').classList.remove('active');
-        renderAdminProducts();
-        renderAdminNeighborhoods();
-    } else if (pass !== null) {
-        alert('Senha incorreta!');
-    }
+document.getElementById('btn-view-admin').onclick = async () => {
+  const pass = prompt('Digite a senha de administrador:');
+  if (!pass) return;
+
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'checkAdmin',
+      password: pass
+    })
+  });
+
+  const result = await res.json();
+
+  if (result.status === 'success') {
+    isAdminLogged = true;
+    menuSection.classList.add('hidden');
+    adminSection.classList.remove('hidden');
+    renderAdminProducts();
+    renderAdminNeighborhoods();
+  } else {
+    alert('Senha incorreta!');
+  }
 };
+
 
 document.getElementById('btn-logout').onclick = () => {
     adminSection.classList.add('hidden');
@@ -799,5 +811,14 @@ function copyPixKey() {
     navigator.clipboard.writeText(key).then(() => {
         showToast('Chave Pix copiada!', 'success');
     });
+}
+async function loadPublicConfig() {
+  try {
+    const res = await fetch(`${API_URL}?action=getConfig`);
+    const config = await res.json();
+    WHATSAPP_NUMBER = config.whatsapp || '';
+  } catch (e) {
+    console.error('Erro ao carregar config pública', e);
+  }
 }
 
