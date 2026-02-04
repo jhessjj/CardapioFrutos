@@ -283,7 +283,7 @@ function isChargePerFlavor(category) {
     return !(cat.includes('self service') || cat.includes('self-service'));
 }
 
-// Options Modal - RESTORED ORIGINAL FLOW
+
 function openOptions(productId) {
     const prod = products.find(p => p.id.toString() === productId.toString());
     if (!prod) return;
@@ -301,7 +301,7 @@ function openOptions(productId) {
 
     const hasOptions = prod.options && prod.options.length > 0;
     
-    // Original Logic: Show/Hide global qty based on options
+   
     const globalQtyControl = document.querySelector('.qty-control');
     if (globalQtyControl) {
         if (hasOptions) globalQtyControl.style.display = 'none';
@@ -322,6 +322,8 @@ function openOptions(productId) {
             let badgesHTML = '';
             if (restrictions.glutenFree) badgesHTML += '<span class="badge badge-gluten" style="margin-left:5px">S. Glúten</span>';
             if (restrictions.lactoseFree) badgesHTML += '<span class="badge badge-lactose" style="margin-left:5px">S. Lactose</span>';
+            if (restrictions.sugarFree) badgesHTML += '<span class="badge badge-sugar" style="margin-left:5px">S. Açúcar</span>';
+
 
             const item = document.createElement('div');
             item.className = 'flavor-item-row';
@@ -376,7 +378,6 @@ window.updateFlavorQty = (flavor, delta) => {
     let existing = selectedOptions.find(o => o.name === flavor);
     
     if (delta > 0) {
-        // Original Logic: Limit 3 flavors for Self Service
         if (isSelfService && currentTotal >= 3) {
             showToast('Limite de 3 sabores para Self Service!', 'warning');
             return;
@@ -552,19 +553,32 @@ if (!paymentMethod) {
 
    
 
-let message = `*NOVO PEDIDO* 🍦\n\n`;
-message += `*Cliente:* ${name}\n`;
-message += `*Endereço:* ${fullAddress}\n`;
-message += `*Bairro:* ${selectedNeighborhood}\n`;
-message += `*Pagamento:* ${paymentMethod}${paymentMethod === 'Dinheiro' && cashChange ? ` (Troco p/ ${cashChange})` : ''}\n\n`;
+let message = `Novo Pedido - Frutos de Goiás\n`;
+message += `👤 Cliente: ${name}\n`;
+message += `📍 Endereço: ${street}, Nº ${number}${ref ? ` (${ref})` : ''} - ${type}\n`;
+message += `🏘️ Bairro: ${selectedNeighborhood}\n`;
+message += `🛒 Itens:\n`;
 
-message += `*ITENS:*\n`;
 cart.forEach(item => {
-    const flavors = item.options.map(o => `${o.qty}x ${o.name}`).join(', ');
-    message += `• ${item.quantity}x ${item.name}${flavors ? ` (${flavors})` : ''}\n`;
-    if (item.extras.length > 0) message += `  + Extras: ${item.extras.join(', ')}\n`;
+    const isSelfService = item.category && (item.category.toLowerCase().includes('self'));
+    const flavors = item.options.map(o => o.name).join(', ');
+    
+
+    if (isSelfService) {
+        message += `* ${item.name} (R$ ${item.price.toFixed(2)})\n`;
+    } else {
+        message += `* ${item.quantity}x ${item.name} (R$ ${item.price.toFixed(2)})\n`;
+    }
+    
+    if (flavors) message += `  Sabores: ${flavors}\n`;
 });
 
+
+message += `💰 Subtotal: R$ ${subtotal.toFixed(2)}\n`;
+message += `🚚 Entrega: R$ ${deliveryFee.toFixed(2)}\n`;
+if (discount > 0) message += `🎁 Desconto: -R$ ${discount.toFixed(2)}\n`;
+message += `⭐ TOTAL: R$ ${total.toFixed(2)}`;
+message += `\n💳 Pagamento: ${paymentMethod}`;
 message += `\n*TOTAL: R$ ${total.toFixed(2)}* ✅`;
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
 };
@@ -775,4 +789,15 @@ window.togglePaymentDetails = () => {
     document.getElementById('pix-details').style.display = (method === 'Pix') ? 'block' : 'none';
     document.getElementById('cash-details').style.display = (method === 'Dinheiro') ? 'block' : 'none';
 };
+function toggleClientTypeOther() {
+    const type = document.getElementById('client-type').value;
+    const otherInput = document.getElementById('client-type-other');
+    otherInput.style.display = type === 'Outros' ? 'block' : 'none';
+}
+function copyPixKey() {
+    const key = document.getElementById('pix-key-text').innerText;
+    navigator.clipboard.writeText(key).then(() => {
+        showToast('Chave Pix copiada!', 'success');
+    });
+}
 

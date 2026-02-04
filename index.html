@@ -147,11 +147,14 @@
         <input id="client-number" placeholder="Nº" style="margin-bottom: 0;" />
     </div>
     <input id="client-ref" placeholder="Ponto de referência" />
-    <select id="client-type" style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #e5e7eb; background: #f9fafb; margin-bottom: 10px; font-size: 14px;">
-        <option value="">Selecione: Casa ou Apartamento</option>
-        <option value="Casa">Casa</option>
-        <option value="Apartamento">Apartamento</option>
-    </select>
+    <select id="client-type" onchange="toggleClientTypeOther()" style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #e5e7eb; background: #f9fafb; margin-bottom: 10px; font-size: 14px;">
+    <option value="">Selecione: Casa ou Apartamento</option>
+    <option value="Casa">Casa</option>
+    <option value="Apartamento">Apartamento</option>
+    <option value="Outros">Outros</option>
+</select>
+<input id="client-type-other" placeholder="O que é?" style="display: none; margin-bottom: 10px; width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #e5e7eb;" />
+
     <div class="payment-section" style="margin-top: 12px; border-top: 1px solid #eee; pt: 10px;">
     <label style="font-weight: bold; display: block; margin-bottom: 5px;">Forma de Pagamento:</label>
     <select id="payment-method" class="cart-input" onchange="togglePaymentDetails()" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ddd;">
@@ -162,9 +165,11 @@
         <option value="Cartão de Crédito">Cartão de Crédito</option>
     </select>
 
-    <div id="pix-details" style="display: none; margin-top: 10px; background: #f0fdf4; padding: 10px; border-radius: 5px;">
-        <p style="font-size: 12px; color: #166534; margin: 0;">Chave Pix: 53.294.249/0001-13 <strong></strong></p>
-    </div>
+   <div id="pix-details" style="display: none; margin-top: 10px; background: #fff7ed; padding: 10px; border-radius: 5px; border: 1px solid #ffedd5;">
+    <p style="font-size: 12px; color: #9a3412; margin: 0;">Chave Pix: <span id="pix-key-text">53.294.249/0001-13</span></p>
+    <button onclick="copyPixKey()" style="margin-top: 8px; background: #f97316; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;">Copiar Chave Pix</button>
+</div>
+
 
     <div id="cash-details" style="display: none; margin-top: 10px;">
         <input type="text" id="cash-change" class="cart-input" placeholder="Troco para quanto?" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ddd;">
