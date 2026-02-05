@@ -329,7 +329,7 @@ function openOptions(productId) {
         prod.options.forEach(opt => {
             const stockValue = (prod.stock && prod.stock[opt] !== undefined) ? prod.stock[opt] : 1;
             const isAvailable = Number(stockValue) > 0;
-            const restrictions = prod.restrictions?.[opt] || { glutenFree: false, lactoseFree: false };
+            const restrictions = prod.restrictions?.[opt] || { glutenFree: false, lactoseFree: false, sugarFree: false };
             
             let badgesHTML = '';
             if (restrictions.glutenFree) badgesHTML += '<span class="badge badge-gluten" style="margin-left:5px">S. Glúten</span>';
@@ -360,6 +360,11 @@ function openOptions(productId) {
     if (prod.extras && prod.extras.length > 0) {
         const group = document.createElement('div');
         group.className = 'option-group';
+        group.id = 'extras-group'; 
+        // Começa escondido se tiver opções de sabores
+        if (hasOptions) {
+            group.style.display = 'none';
+        }
         group.innerHTML = `<label>Extras (Máx. 3):</label><div class="option-list"></div>`;
         const list = group.querySelector('.option-list');
         prod.extras.forEach(extra => {
@@ -373,6 +378,10 @@ function openOptions(productId) {
         
         const deliveryOption = document.createElement('div');
         deliveryOption.className = 'extra-delivery-option';
+        deliveryOption.id = 'extras-separate-container'; 
+        if (hasOptions) {
+            deliveryOption.style.display = 'none';
+        }
         deliveryOption.innerHTML = `
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                 <input type="checkbox" id="extras-separate"> Enviar extras separadamente
@@ -386,11 +395,11 @@ function openOptions(productId) {
 
 window.updateFlavorQty = (flavor, delta) => {
     const isSelfService = currentProductForOptions.category.toLowerCase().includes('self');
-    const currentTotal = selectedOptions.reduce((acc, curr) => acc + curr.qty, 0);
+    const currentTotalBefore = selectedOptions.reduce((acc, curr) => acc + curr.qty, 0);
     let existing = selectedOptions.find(o => o.name === flavor);
     
     if (delta > 0) {
-        if (isSelfService && currentTotal >= 3) {
+        if (isSelfService && currentTotalBefore >= 3) {
             showToast('Limite de 3 sabores para Self Service!', 'warning');
             return;
         }
@@ -405,8 +414,37 @@ window.updateFlavorQty = (flavor, delta) => {
             if (existing.qty === 0) selectedOptions = selectedOptions.filter(o => o.name !== flavor);
         }
     }
+    
     const qtySpan = document.getElementById(`qty-${flavor}`);
     if (qtySpan) qtySpan.innerText = existing ? existing.qty : 0;
+
+    // Lógica para mostrar/esconder extras:
+    // Aparece quando atingir o limite (3 no self service) ou quando tiver pelo menos 1 (nos outros)
+    const currentTotalAfter = selectedOptions.reduce((acc, curr) => acc + curr.qty, 0);
+    const extrasGroup = document.getElementById('extras-group');
+    const extrasSeparateContainer = document.getElementById('extras-separate-container');
+    
+    if (extrasGroup) {
+        let shouldShow = false;
+        if (isSelfService) {
+            if (currentTotalAfter >= 3) shouldShow = true;
+        } else {
+            if (currentTotalAfter > 0) shouldShow = true;
+        }
+
+        if (shouldShow) {
+            extrasGroup.style.display = 'block';
+            if (extrasSeparateContainer) extrasSeparateContainer.style.display = 'block';
+        } else {
+            extrasGroup.style.display = 'none';
+            if (extrasSeparateContainer) extrasSeparateContainer.style.display = 'none';
+            // Limpa extras selecionados se esconder
+            selectedExtras = [];
+            document.querySelectorAll('.option-item.selected').forEach(el => el.classList.remove('selected'));
+            const checkbox = document.getElementById('extras-separate');
+            if (checkbox) checkbox.checked = false;
+        }
+    }
 };
 
 function toggleExtra(extra, element) {
@@ -439,10 +477,17 @@ document.getElementById('btn-qty-plus').onclick = () => {
 document.getElementById('btn-confirm-options').onclick = () => {
     const totalFlavors = selectedOptions.reduce((sum, o) => sum + o.qty, 0);
     const hasOptions = currentProductForOptions.options.length > 0;
+    const isSelfService = currentProductForOptions.category.toLowerCase().includes('self');
     
-    if (hasOptions && totalFlavors === 0) {
-        showToast('Selecione pelo menos um sabor!', 'warning');
-        return;
+    if (hasOptions) {
+        if (isSelfService && totalFlavors < 3) {
+            showToast('Por favor, escolha os 3 sabores do seu Self Service!', 'warning');
+            return;
+        }
+        if (totalFlavors === 0) {
+            showToast('Selecione pelo menos um sabor!', 'warning');
+            return;
+        }
     }
 
     const extrasSeparate = document.getElementById('extras-separate')?.checked || false;
@@ -453,7 +498,7 @@ document.getElementById('btn-confirm-options').onclick = () => {
         category: currentProductForOptions.category,
         name: currentProductForOptions.name,
         price: currentProductForOptions.price,
-        quantity: (hasOptions && totalFlavors > 0) ? totalFlavors : selectedQuantity,
+        quantity: (hasOptions && totalFlavors > 0) ? (isSelfService ? 1 : totalFlavors) : selectedQuantity,
         options: [...selectedOptions],
         extras: [...selectedExtras],
         extrasSeparate: extrasSeparate
@@ -498,15 +543,14 @@ function updateCart() {
     });
 
     const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
-    const deliveryFee = neighborhood ? neighborhood.fee : 0;
     
     let discount = 0;
     if (subtotal >= DISCOUNT_THRESHOLD) discount = DISCOUNT_AMOUNT;
 
-    const total = subtotal + deliveryFee - discount;
+    const total = subtotal + (neighborhood ? neighborhood.fee : 0) - discount;
 
     document.getElementById('subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
-    document.getElementById('delivery-fee').innerText = `R$ ${deliveryFee.toFixed(2)}`;
+    document.getElementById('delivery-fee').innerText = neighborhood ? `R$ ${neighborhood.fee.toFixed(2)}` : 'R$ 0.00';
     
     const discRow = document.getElementById('discount-row');
     if (discount > 0) {
@@ -551,7 +595,6 @@ if (!paymentMethod) {
     return; 
 }
 
-    const fullAddress = `${street}, Nº ${number}${ref ? ` (Ref: ${ref})` : ''} - ${type}`;
     const neighborhood = neighborhoods.find(n => n.name === selectedNeighborhood);
     const deliveryFee = neighborhood ? neighborhood.fee : 0;
     
@@ -565,33 +608,35 @@ if (!paymentMethod) {
 
    
 
-let message = `Novo Pedido - Frutos de Goiás\n`;
-message += `👤 Cliente: ${name}\n`;
-message += `📍 Endereço: ${street}, Nº ${number}${ref ? ` (${ref})` : ''} - ${type}\n`;
-message += `🏘️ Bairro: ${selectedNeighborhood}\n`;
-message += `🛒 Itens:\n`;
+let message = `*Novo Pedido - Frutos de Goiás*\n\n`;
+message += `👤 *Cliente:* ${name}\n\n`;
+message += `📍 *Endereço:* ${street}, Nº ${number}${ref ? ` (${ref})` : ''} - ${type}\n`;
+message += `🏘️ *Bairro:* ${selectedNeighborhood}\n\n`;
+message += `🛒 *Itens:*\n`;
 
 cart.forEach(item => {
     const isSelfService = item.category && (item.category.toLowerCase().includes('self'));
-    const flavors = item.options.map(o => o.name).join(', ');
+    const flavors = item.options.map(o => `${o.qty}x ${o.name}`).join(', ');
+    const extras = item.extras.length > 0 ? ` + Extras: ${item.extras.join(', ')}${item.extrasSeparate ? ' (Separados)' : ''}` : '';
     
-
     if (isSelfService) {
-        message += `* ${item.name} (R$ ${item.price.toFixed(2)})\n`;
+        message += `• ${item.name} (R$ ${item.price.toFixed(2)})\n`;
     } else {
-        message += `* ${item.quantity}x ${item.name} (R$ ${item.price.toFixed(2)})\n`;
+        message += `• ${item.quantity}x ${item.name} (R$ ${item.price.toFixed(2)})\n`;
     }
     
-    if (flavors) message += `  Sabores: ${flavors}\n`;
+    if (flavors) message += `  _Sabores: ${flavors}_\n`;
+    if (extras) message += `  _Extras: ${extras}_\n`;
+    message += `\n`;
 });
 
 
-message += `💰 Subtotal: R$ ${subtotal.toFixed(2)}\n`;
-message += `🚚 Entrega: R$ ${deliveryFee.toFixed(2)}\n`;
-if (discount > 0) message += `🎁 Desconto: -R$ ${discount.toFixed(2)}\n`;
-message += `⭐ TOTAL: R$ ${total.toFixed(2)}`;
-message += `\n💳 Pagamento: ${paymentMethod}`;
-message += `\n*TOTAL: R$ ${total.toFixed(2)}* ✅`;
+message += `💰 *Subtotal:* R$ ${subtotal.toFixed(2)}\n`;
+message += `🚚 *Entrega:* R$ ${deliveryFee.toFixed(2)}\n`;
+if (discount > 0) message += `🎁 *Desconto:* -R$ ${discount.toFixed(2)}\n`;
+message += `💳 *Pagamento:* ${paymentMethod}\n\n`;
+message += `⭐ *TOTAL: R$ ${total.toFixed(2)}* ✅`;
+
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
 };
 
@@ -603,7 +648,7 @@ function renderAdminProducts() {
         if (p.options && p.options.length > 0) {
             p.options.forEach(opt => {
                 const isAvailable = (p.stock && p.stock[opt] !== undefined) ? Number(p.stock[opt]) > 0 : true;
-                const restrictions = p.restrictions?.[opt] || { glutenFree: false, lactoseFree: false };
+                const restrictions = p.restrictions?.[opt] || { glutenFree: false, lactoseFree: false, sugarFree: false };
                 
                 stockHTML += `
                     <div class="admin-flavor-item">
@@ -619,6 +664,8 @@ function renderAdminProducts() {
                                 onclick="toggleFlavorRestriction('${p.id}', '${opt}', 'glutenFree')">Sem Glúten</button>
                             <button type="button" class="admin-tag-btn lactose ${restrictions.lactoseFree ? 'on' : 'off'}" 
                                 onclick="toggleFlavorRestriction('${p.id}', '${opt}', 'lactoseFree')">Sem Lactose</button>
+                            <button type="button" class="admin-tag-btn sugar ${restrictions.sugarFree ? 'on' : 'off'}" 
+                                onclick="toggleFlavorRestriction('${p.id}', '${opt}', 'sugarFree')">Sem Açúcar</button>
                         </div>
                     </div>`;
             });
@@ -653,7 +700,7 @@ window.toggleFlavorRestriction = async (productId, flavor, type) => {
     const p = products.find(prod => prod.id.toString() === productId.toString());
     if (!p) return;
     if (!p.restrictions) p.restrictions = {};
-    if (!p.restrictions[flavor]) p.restrictions[flavor] = { glutenFree: false, lactoseFree: false };
+    if (!p.restrictions[flavor]) p.restrictions[flavor] = { glutenFree: false, lactoseFree: false, sugarFree: false };
     p.restrictions[flavor][type] = !p.restrictions[flavor][type];
     renderAdminProducts();
     await postData({ action: 'saveProduct', data: { ...p, stock: JSON.stringify(p.stock), restrictions: JSON.stringify(p.restrictions) } });
@@ -679,7 +726,7 @@ document.getElementById('product-form').onsubmit = async (e) => {
     options.forEach(opt => {
         const cleanOpt = opt.trim();
         newStock[cleanOpt] = (existingStock[cleanOpt] !== undefined) ? existingStock[cleanOpt] : 1;
-        newRestrictions[cleanOpt] = existingRestrictions[cleanOpt] || { glutenFree: false, lactoseFree: false };
+        newRestrictions[cleanOpt] = existingRestrictions[cleanOpt] || { glutenFree: false, lactoseFree: false, sugarFree: false };
     });
     
     const productData = {
@@ -821,4 +868,3 @@ async function loadPublicConfig() {
     console.error('Erro ao carregar config pública', e);
   }
 }
-
